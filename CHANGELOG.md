@@ -1,5 +1,13 @@
 # Changelog
 
+## Next Version
+
+### Features Added
+- Upgrade to signers 1.0.19 allows empty password files to be read when creating a Signer.
+
+### Breaking Changes
+- Upgrade to signers 1.0.19 removes support for deprecated SECP256K1 curve in Azure remote signing.
+
 ## 21.8.1
 
 ### Features Added

@@ -170,7 +170,7 @@ public class MetadataFileHelpers {
       final Map<String, String> signingMetadata = new HashMap<>();
       signingMetadata.put("type", "azure-key");
       signingMetadata.put("vaultName", keyVaultName);
-      signingMetadata.put("keyName", "TestKey");
+      signingMetadata.put("keyName", "TestKey2");
       signingMetadata.put("clientId", clientId);
       signingMetadata.put("clientSecret", clientSecret);
       signingMetadata.put("tenantId", tenantId);

@@ -13,7 +13,7 @@
 
 dependencyManagement {
   dependencies {
-    dependency 'com.fasterxml.jackson.core:jackson-databind:2.11.2'
+    dependency 'com.fasterxml.jackson.core:jackson-databind:2.12.5'
     dependency 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.2'
 
     dependencySet(group: 'com.google.errorprone', version: '2.7.1') {
@@ -31,7 +31,7 @@ dependencyManagement {
 
     dependency 'info.picocli:picocli:4.5.1'
 
-    dependencySet(group: 'io.vertx', version: '3.9.8') {
+    dependencySet(group: 'io.vertx', version: '3.9.9') {
       entry 'vertx-codegen'
       entry 'vertx-core'
       entry 'vertx-unit'
@@ -88,7 +88,7 @@ dependencyManagement {
 
     dependency 'tech.pegasys:jblst:0.3.3-1'
 
-    dependencySet(group: 'tech.pegasys.signers.internal', version: '1.0.17') {
+    dependencySet(group: 'tech.pegasys.signers.internal', version: '1.0.19') {
       entry 'bls-keystore'
       entry 'keystorage-hashicorp'
       entry 'keystorage-azure'
@@ -108,8 +108,8 @@ dependencyManagement {
 
     dependency 'org.miracl.milagro.amcl:milagro-crypto-java:0.4.0'
 
-    dependency 'com.azure:azure-security-keyvault-secrets:4.2.1'
-    dependency 'com.azure:azure-identity:1.0.9'
+    dependency 'com.azure:azure-security-keyvault-secrets:4.3.3'
+    dependency 'com.azure:azure-identity:1.3.6'
 
     dependency 'com.zaxxer:HikariCP:3.4.5'
     dependency 'org.postgresql:postgresql:42.2.20'

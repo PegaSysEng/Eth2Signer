@@ -24,7 +24,7 @@ buildscript {
     maven { url "https://artifacts.consensys.net/public/maven/maven/" }
   }
   dependencies {
-    classpath 'tech.pegasys.internal.license.reporter:license-reporter:1.0.0'
+    classpath 'tech.pegasys.internal.license.reporter:license-reporter:1.0.1'
   }
 }
 
@@ -238,6 +238,9 @@ task deploy() {}
 
 licenseReport {
   outputDir = "${buildDir}/reports/licenses"
+  excludes = [
+    'com.fasterxml.jackson:jackson-bom'
+  ]
   allowedLicensesFile = new File("${rootDir}/gradle/license-report-config/allowed-licenses.json")
   filters = [
     new LicenseBundleNormalizer(["bundlePath": new File("${rootDir}/gradle/license-report-config/license-normalizer.json"), "createDefaultTransformationRules": true])

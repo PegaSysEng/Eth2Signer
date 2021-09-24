@@ -15,10 +15,10 @@ package tech.pegasys.web3signer.tests.signing;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.web3j.crypto.Sign.publicKeyFromPrivate;
 import static org.web3j.crypto.Sign.signedMessageToKey;
 
 import tech.pegasys.signers.hashicorp.dsl.HashicorpNode;
+import tech.pegasys.signers.secp256k1.EthPublicKeyUtils;
 import tech.pegasys.web3signer.core.signing.KeyType;
 import tech.pegasys.web3signer.dsl.HashicorpSigningParams;
 import tech.pegasys.web3signer.dsl.utils.MetadataFileHelpers;
@@ -28,6 +28,7 @@ import java.math.BigInteger;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.SignatureException;
+import java.security.interfaces.ECPublicKey;
 
 import com.google.common.io.Resources;
 import io.restassured.response.Response;
@@ -50,27 +51,10 @@ public class SecpSigningAcceptanceTest extends SigningAcceptanceTestBase {
       "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63";
   public static final String PUBLIC_KEY_HEX_STRING =
       "09b02f8a5fddd222ade4ea4528faefc399623af3f736be3c44f03e2df22fb792f3931a4d9573d333ca74343305762a753388c3422a86d98b713fc91c1ea04842";
+  public static final String AZURE_PUBLIC_KEY_HEX_STRING =
+      "964f00253459f1f43c7a7720a0db09a328d4ee6f18838015023135d7fc921f1448de34d05de7a1f72a7b5c9f6c76931d7ab33d0f0846ccce5452063bd20f5809";
 
   private final MetadataFileHelpers metadataFileHelpers = new MetadataFileHelpers();
-
-  @Test
-  @EnabledIfEnvironmentVariables({
-    @EnabledIfEnvironmentVariable(named = "AZURE_CLIENT_ID", matches = ".*"),
-    @EnabledIfEnvironmentVariable(named = "AZURE_CLIENT_SECRET", matches = ".*"),
-    @EnabledIfEnvironmentVariable(named = "AZURE_KEY_VAULT_NAME", matches = ".*"),
-    @EnabledIfEnvironmentVariable(named = "AZURE_KEY_TENANT_ID", matches = ".*")
-  })
-  public void signDataWithKeyInAzure(@TempDir Path keyConfigDirectory) {
-
-    metadataFileHelpers.createAzureKeyYamlFileAt(
-        keyConfigDirectory.resolve(PUBLIC_KEY_HEX_STRING + ".yaml"),
-        clientId,
-        clientSecret,
-        keyVaultName,
-        tenantId);
-
-    signAndVerifySignature();
-  }
 
   @Test
   public void signDataWithFileBasedKey(@TempDir Path keyConfigDirectory) throws URISyntaxException {
@@ -113,35 +97,39 @@ public class SecpSigningAcceptanceTest extends SigningAcceptanceTestBase {
     @EnabledIfEnvironmentVariable(named = "AZURE_KEY_VAULT_NAME", matches = ".*"),
     @EnabledIfEnvironmentVariable(named = "AZURE_TENANT_ID", matches = ".*")
   })
-  public void signDatWithKeyFromAzure(@TempDir Path keyConfigDirectory) {
+  public void signDataWithKeyInAzure(@TempDir Path keyConfigDirectory) {
     metadataFileHelpers.createAzureKeyYamlFileAt(
-        keyConfigDirectory.resolve(PUBLIC_KEY_HEX_STRING + ".yaml"),
+        keyConfigDirectory.resolve(AZURE_PUBLIC_KEY_HEX_STRING + ".yaml"),
         clientId,
         clientSecret,
         keyVaultName,
         tenantId);
 
-    signAndVerifySignature();
+    signAndVerifySignature(AZURE_PUBLIC_KEY_HEX_STRING);
   }
 
   private void signAndVerifySignature() {
+    signAndVerifySignature(PUBLIC_KEY_HEX_STRING);
+  }
+
+  private void signAndVerifySignature(String publicKeyHex) {
     setupEth1Signer();
 
     // openapi
-    final Response response = signer.eth1Sign(PUBLIC_KEY_HEX_STRING, DATA);
+    final Response response = signer.eth1Sign(publicKeyHex, DATA);
     final Bytes signature = verifyAndGetSignatureResponse(response);
-    verifySignature(signature);
+    verifySignature(signature, publicKeyHex);
   }
 
-  void verifySignature(final Bytes signature) {
-    final BigInteger privateKey = new BigInteger(1, Bytes.fromHexString(PRIVATE_KEY).toArray());
-    final BigInteger expectedPublicKey = publicKeyFromPrivate(privateKey);
+  void verifySignature(final Bytes signature, final String publicKeyHex) {
+    final ECPublicKey expectedPublicKey =
+        EthPublicKeyUtils.createPublicKey(Bytes.fromHexString(publicKeyHex));
 
     final byte[] r = signature.slice(0, 32).toArray();
     final byte[] s = signature.slice(32, 32).toArray();
     final byte[] v = signature.slice(64).toArray();
     final BigInteger messagePublicKey = recoverPublicKey(new SignatureData(v, r, s));
-    assertThat(messagePublicKey).isEqualTo(expectedPublicKey);
+    assertThat(EthPublicKeyUtils.createPublicKey(messagePublicKey)).isEqualTo(expectedPublicKey);
   }
 
   private BigInteger recoverPublicKey(final SignatureData signature) {
