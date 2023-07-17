@@ -53,7 +53,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
   @BeforeAll
   public static void localSetup() {
     try {
-      setupWeb3Signer(ROOT_PATH);
+      setupWeb3Signer(DEFAULT_CHAIN_ID, ROOT_PATH);
     } catch (final Exception e) {
       throw new RuntimeException("Failed to setup web3signer", e);
     }
@@ -65,7 +65,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
         request.ethNode(RPC_REQUEST), response.ethNode(RESPONSE_HEADERS, RPC_RESPONSE));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(REQUEST_HEADERS, RPC_REQUEST),
+        request.web3Signer(REQUEST_HEADERS, RPC_REQUEST),
         response.web3Signer(RESPONSE_HEADERS, RPC_RESPONSE));
 
     verifyEthNodeReceived(REQUEST_HEADERS, RPC_REQUEST);
@@ -80,7 +80,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
         List.of(ImmutablePair.of("Accept", "*.*"), ImmutablePair.of("Host", "localhost"));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(requestHeaders, RPC_REQUEST),
+        request.web3Signer(requestHeaders, RPC_REQUEST),
         response.web3Signer(RESPONSE_HEADERS, RPC_RESPONSE));
 
     final Iterable<Entry<String, String>> expectedForwardedHeaders =
@@ -102,7 +102,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
             ImmutablePair.of("X-Forwarded-Host", "nowhere"));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(requestHeaders, RPC_REQUEST),
+        request.web3Signer(requestHeaders, RPC_REQUEST),
         response.web3Signer(RESPONSE_HEADERS, RPC_RESPONSE));
 
     final Iterable<Entry<String, String>> expectedForwardedHeaders =
@@ -121,7 +121,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
         response.ethNode("Not Found", HttpResponseStatus.NOT_FOUND));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(ethProtocolVersionRequest),
+        request.web3Signer(ethProtocolVersionRequest),
         response.web3Signer("Not Found", HttpResponseStatus.NOT_FOUND));
 
     verifyEthNodeReceived(ethProtocolVersionRequest);
@@ -134,7 +134,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
         response.ethNode(RESPONSE_HEADERS, RPC_RESPONSE, HttpResponseStatus.OK));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(REQUEST_HEADERS, RPC_REQUEST),
+        request.web3Signer(REQUEST_HEADERS, RPC_REQUEST),
         response.web3Signer(RESPONSE_HEADERS, RPC_RESPONSE),
         "/login");
 
@@ -150,7 +150,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
 
     sendRequestAndVerifyResponse(
         httpMethod,
-        request.web3signer(REQUEST_HEADERS, RPC_REQUEST),
+        request.web3Signer(REQUEST_HEADERS, RPC_REQUEST),
         response.web3Signer(NOT_FOUND_BODY, HttpResponseStatus.NOT_FOUND),
         "/login");
 
@@ -166,7 +166,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
 
     sendRequestAndVerifyResponse(
         httpMethod,
-        request.web3signer(REQUEST_HEADERS, NON_RPC_REQUEST),
+        request.web3Signer(REQUEST_HEADERS, NON_RPC_REQUEST),
         response.web3Signer(NOT_FOUND_BODY, HttpResponseStatus.NOT_FOUND),
         "/login");
 
@@ -192,7 +192,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
             ImmutablePair.of("Origin", originDomain));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(requestHeaders, RPC_REQUEST),
+        request.web3Signer(requestHeaders, RPC_REQUEST),
         response.web3Signer(expectedResponseHeaders, RPC_RESPONSE));
 
     // Cors headers should not be forwarded to the downstream web3 provider (CORS is handled
@@ -211,7 +211,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
             ImmutablePair.of("Origin", originDomain));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(requestHeaders, RPC_REQUEST),
+        request.web3Signer(requestHeaders, RPC_REQUEST),
         response.web3Signer("", HttpResponseStatus.FORBIDDEN));
   }
 
@@ -231,7 +231,7 @@ public class ProxyIntegrationTest extends IntegrationTestBase {
         response.ethNode(multiValueResponseHeader, RPC_RESPONSE, HttpResponseStatus.OK));
 
     sendPostRequestAndVerifyResponse(
-        request.web3signer(requestHeaders, RPC_REQUEST),
+        request.web3Signer(requestHeaders, RPC_REQUEST),
         response.web3Signer(multiValueResponseHeader, RPC_RESPONSE),
         "/login");
   }

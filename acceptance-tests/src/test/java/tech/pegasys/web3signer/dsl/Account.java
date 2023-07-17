@@ -12,9 +12,12 @@
  */
 package tech.pegasys.web3signer.dsl;
 
+import java.math.BigInteger;
+
 public class Account {
 
   private final String address;
+  private BigInteger nonce = BigInteger.ZERO;
 
   public Account(final String address) {
     this.address = address;
@@ -22,5 +25,17 @@ public class Account {
 
   public String address() {
     return address;
+  }
+
+  public BigInteger nextNonce() {
+    return nonce;
+  }
+
+  public BigInteger nextNonceAndIncrement() {
+
+    final BigInteger next = nonce;
+    nonce = nonce.add(BigInteger.ONE);
+
+    return next;
   }
 }

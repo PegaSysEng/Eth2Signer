@@ -32,6 +32,8 @@ public class EthSendTransactionJsonParameters {
   private BigInteger value;
   private String receiver;
   private String data;
+  private BigInteger maxFeePerGas;
+  private BigInteger maxPriorityFeePerGas;
 
   @JsonCreator
   public EthSendTransactionJsonParameters(@JsonProperty("from") final String sender) {
@@ -69,6 +71,16 @@ public class EthSendTransactionJsonParameters {
     this.data = data;
   }
 
+  @JsonSetter("maxPriorityFeePerGas")
+  public void maxPriorityFeePerGas(final String maxPriorityFeePerGas) {
+    this.maxPriorityFeePerGas = decodeBigInteger(maxPriorityFeePerGas);
+  }
+
+  @JsonSetter("maxFeePerGas")
+  public void maxFeePerGas(final String maxFeePerGas) {
+    this.maxFeePerGas = decodeBigInteger(maxFeePerGas);
+  }
+
   public Optional<String> data() {
     return Optional.ofNullable(data);
   }
@@ -95,5 +107,13 @@ public class EthSendTransactionJsonParameters {
 
   public String sender() {
     return sender;
+  }
+
+  public Optional<BigInteger> maxPriorityFeePerGas() {
+    return Optional.ofNullable(maxPriorityFeePerGas);
+  }
+
+  public Optional<BigInteger> maxFeePerGas() {
+    return Optional.ofNullable(maxFeePerGas);
   }
 }

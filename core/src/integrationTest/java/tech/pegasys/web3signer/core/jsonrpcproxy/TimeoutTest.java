@@ -20,7 +20,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.Json;
 import org.junit.jupiter.api.Test;
 
-class TimeoutTest extends IntegrationTestBase {
+class TimeoutTest extends DefaultTestBase {
 
   @Test
   void downstreamConnectsButDoesNotRespondReturnsGatewayTimeout() {
@@ -34,7 +34,7 @@ class TimeoutTest extends IntegrationTestBase {
                 request.getId(), JsonRpcError.CONNECTION_TO_DOWNSTREAM_NODE_TIMED_OUT));
 
     sendPostRequestAndVerifyResponse(
-        this.request.web3signer(request.getEncodedRequestBody()),
+        this.request.web3Signer(request.getEncodedRequestBody()),
         response.web3Signer(expectedResponse, HttpResponseStatus.GATEWAY_TIMEOUT));
   }
 }

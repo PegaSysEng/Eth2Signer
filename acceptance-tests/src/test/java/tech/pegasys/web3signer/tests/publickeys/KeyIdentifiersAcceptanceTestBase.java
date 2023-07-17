@@ -17,6 +17,7 @@ import static tech.pegasys.web3signer.signing.KeyType.BLS;
 
 import tech.pegasys.teku.bls.BLSKeyPair;
 import tech.pegasys.teku.bls.BLSSecretKey;
+import tech.pegasys.web3signer.core.service.jsonrpc.handlers.signing.ConfigurationChainId;
 import tech.pegasys.web3signer.dsl.signer.Signer;
 import tech.pegasys.web3signer.dsl.signer.SignerConfigurationBuilder;
 import tech.pegasys.web3signer.dsl.utils.MetadataFileHelpers;
@@ -153,6 +154,8 @@ public class KeyIdentifiersAcceptanceTestBase extends AcceptanceTestBase {
   protected void initAndStartSigner(final String mode) {
     final SignerConfigurationBuilder builder = new SignerConfigurationBuilder();
     builder.withKeyStoreDirectory(testDirectory).withMode(mode);
+    if (mode.equals("eth1"))
+      builder.withChainIdProvider(new ConfigurationChainId(DEFAULT_CHAIN_ID));
     startSigner(builder.build());
   }
 

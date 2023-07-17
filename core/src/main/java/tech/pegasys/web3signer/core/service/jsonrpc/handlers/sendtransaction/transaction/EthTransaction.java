@@ -32,15 +32,18 @@ import org.web3j.rlp.RlpType;
 public class EthTransaction implements Transaction {
 
   private static final String JSON_RPC_METHOD = "eth_sendRawTransaction";
+  private final long chainId;
   protected final EthSendTransactionJsonParameters transactionJsonParameters;
   protected final NonceProvider nonceProvider;
   protected final JsonRpcRequestId id;
   protected BigInteger nonce;
 
   public EthTransaction(
+      final long chainId,
       final EthSendTransactionJsonParameters transactionJsonParameters,
       final NonceProvider nonceProvider,
       final JsonRpcRequestId id) {
+    this.chainId = chainId;
     this.transactionJsonParameters = transactionJsonParameters;
     this.id = id;
     this.nonceProvider = nonceProvider;
@@ -90,8 +93,15 @@ public class EthTransaction implements Transaction {
   }
 
   @Override
+  public boolean isEip1559() {
+    return transactionJsonParameters.maxPriorityFeePerGas().isPresent()
+        && transactionJsonParameters.maxFeePerGas().isPresent();
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("chainId", chainId)
         .add("transactionJsonParameters", transactionJsonParameters)
         .add("nonceProvider", nonceProvider)
         .add("id", id)
@@ -100,12 +110,24 @@ public class EthTransaction implements Transaction {
   }
 
   protected RawTransaction createTransaction() {
-    return RawTransaction.createTransaction(
-        nonce,
-        transactionJsonParameters.gasPrice().orElse(DEFAULT_GAS_PRICE),
-        transactionJsonParameters.gas().orElse(DEFAULT_GAS),
-        transactionJsonParameters.receiver().orElse(DEFAULT_TO),
-        transactionJsonParameters.value().orElse(DEFAULT_VALUE),
-        transactionJsonParameters.data().orElse(DEFAULT_DATA));
+    if (isEip1559()) {
+      return RawTransaction.createTransaction(
+          chainId,
+          nonce,
+          transactionJsonParameters.gas().orElse(DEFAULT_GAS),
+          transactionJsonParameters.receiver().orElse(DEFAULT_TO),
+          transactionJsonParameters.value().orElse(DEFAULT_VALUE),
+          transactionJsonParameters.data().orElse(DEFAULT_DATA),
+          transactionJsonParameters.maxPriorityFeePerGas().orElseThrow(),
+          transactionJsonParameters.maxFeePerGas().orElseThrow());
+    } else {
+      return RawTransaction.createTransaction(
+          nonce,
+          transactionJsonParameters.gasPrice().orElse(DEFAULT_GAS_PRICE),
+          transactionJsonParameters.gas().orElse(DEFAULT_GAS),
+          transactionJsonParameters.receiver().orElse(DEFAULT_TO),
+          transactionJsonParameters.value().orElse(DEFAULT_VALUE),
+          transactionJsonParameters.data().orElse(DEFAULT_DATA));
+    }
   }
 }

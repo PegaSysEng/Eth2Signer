@@ -19,10 +19,26 @@ import java.util.List;
 
 public class Accounts {
 
+  /** Private key: 8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63 */
+  private static final String GENESIS_ACCOUNT_ONE_PUBLIC_KEY =
+      "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73";
+
+  public static final String GENESIS_ACCOUNT_ONE_PASSWORD = "pass";
+
+  private final Account benefactor;
   private final Eth eth;
 
   public Accounts(final Eth eth) {
     this.eth = eth;
+    this.benefactor = new Account(GENESIS_ACCOUNT_ONE_PUBLIC_KEY);
+  }
+
+  public Account richBenefactor() {
+    return benefactor;
+  }
+
+  public BigInteger balance(final Account account) {
+    return balance(account.address());
   }
 
   public BigInteger balance(final String address) {

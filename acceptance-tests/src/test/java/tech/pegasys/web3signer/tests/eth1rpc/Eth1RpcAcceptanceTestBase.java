@@ -12,16 +12,25 @@
  */
 package tech.pegasys.web3signer.tests.eth1rpc;
 
+import tech.pegasys.web3signer.dsl.Account;
 import tech.pegasys.web3signer.dsl.besu.BesuNode;
 import tech.pegasys.web3signer.dsl.besu.BesuNodeConfig;
 import tech.pegasys.web3signer.dsl.besu.BesuNodeConfigBuilder;
 import tech.pegasys.web3signer.dsl.besu.BesuNodeFactory;
+import tech.pegasys.web3signer.dsl.utils.MetadataFileHelpers;
+import tech.pegasys.web3signer.signing.KeyType;
 import tech.pegasys.web3signer.tests.AcceptanceTestBase;
 
+import java.io.File;
 import java.math.BigInteger;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.List;
 
+import com.google.common.io.Resources;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 import org.web3j.utils.Convert;
 
 public class Eth1RpcAcceptanceTestBase extends AcceptanceTestBase {
@@ -31,6 +40,8 @@ public class Eth1RpcAcceptanceTestBase extends AcceptanceTestBase {
       Convert.toWei("5", Convert.Unit.SZABO).toBigIntegerExact();
 
   protected BesuNode besu;
+  protected final MetadataFileHelpers metadataFileHelpers = new MetadataFileHelpers();
+  protected Path keyFileTempDir;
 
   protected void startBesu() {
     final BesuNodeConfig besuNodeConfig =
@@ -43,11 +54,28 @@ public class Eth1RpcAcceptanceTestBase extends AcceptanceTestBase {
     besu.awaitStartupCompletion();
   }
 
+  @BeforeEach
+  public synchronized void generateTempFile(@TempDir Path testDirectory) throws URISyntaxException {
+    final String keyPath =
+        new File(Resources.getResource("secp256k1/wallet.json").toURI()).getAbsolutePath();
+
+    final Path keyConfigFile = testDirectory.resolve("arbitrary_secp.yaml");
+
+    metadataFileHelpers.createKeyStoreYamlFileAt(
+        keyConfigFile, Path.of(keyPath), "pass", KeyType.SECP256K1);
+
+    keyFileTempDir = testDirectory;
+  }
+
   @AfterEach
   public synchronized void shutdownBesu() {
     if (besu != null) {
       besu.shutdown();
       besu = null;
     }
+  }
+
+  protected Account richBenefactor() {
+    return signer.accounts().richBenefactor();
   }
 }

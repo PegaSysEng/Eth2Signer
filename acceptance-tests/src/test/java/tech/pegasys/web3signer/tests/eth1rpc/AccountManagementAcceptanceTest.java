@@ -17,38 +17,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.signing.ConfigurationChainId;
 import tech.pegasys.web3signer.dsl.signer.SignerConfiguration;
 import tech.pegasys.web3signer.dsl.signer.SignerConfigurationBuilder;
-import tech.pegasys.web3signer.dsl.utils.MetadataFileHelpers;
-import tech.pegasys.web3signer.signing.KeyType;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.util.List;
 
-import com.google.common.io.Resources;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class AccountManagementAcceptanceTest extends Eth1RpcAcceptanceTestBase {
-  private final MetadataFileHelpers metadataFileHelpers = new MetadataFileHelpers();
 
   @BeforeEach
-  public void setup(@TempDir Path testDirectory) throws URISyntaxException {
+  public void setup() throws URISyntaxException {
     startBesu();
     // generate key in temp dir before start web3signer
-    final String keyPath =
-        new File(Resources.getResource("secp256k1/wallet.json").toURI()).getAbsolutePath();
-
-    final Path keyConfigFile = testDirectory.resolve("arbitrary_secp.yaml");
-
-    metadataFileHelpers.createKeyStoreYamlFileAt(
-        keyConfigFile, Path.of(keyPath), "pass", KeyType.SECP256K1);
 
     final SignerConfiguration web3SignerConfiguration =
         new SignerConfigurationBuilder()
-            .withKeyStoreDirectory(testDirectory)
+            .withKeyStoreDirectory(keyFileTempDir)
             .withMode("eth1")
             .withDownstreamHttpPort(besu.ports().getHttpRpc())
             .withChainIdProvider(new ConfigurationChainId(DEFAULT_CHAIN_ID))

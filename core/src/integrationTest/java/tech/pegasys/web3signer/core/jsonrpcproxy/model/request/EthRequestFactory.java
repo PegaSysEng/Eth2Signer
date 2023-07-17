@@ -23,16 +23,16 @@ public class EthRequestFactory {
 
   private static final Iterable<Entry<String, String>> NO_HEADERS = emptyList();
 
-  public Web3SignerRequest web3signer(
+  public Web3SignerRequest web3Signer(
       final Iterable<Entry<String, String>> headers, final String body) {
     return new Web3SignerRequest(headers, body);
   }
 
-  public Web3SignerRequest web3signer(final String body) {
+  public Web3SignerRequest web3Signer(final String body) {
     return new Web3SignerRequest(NO_HEADERS, body);
   }
 
-  public Web3SignerRequest web3signer(final Request<?, ?> request) {
+  public Web3SignerRequest web3Signer(final Request<?, ?> request) {
     return new Web3SignerRequest(NO_HEADERS, Json.encode(request));
   }
 

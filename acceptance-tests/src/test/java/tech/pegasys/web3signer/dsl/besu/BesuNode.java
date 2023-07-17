@@ -17,6 +17,8 @@ import static tech.pegasys.web3signer.dsl.utils.WaitUtils.waitFor;
 
 import tech.pegasys.web3signer.dsl.Accounts;
 import tech.pegasys.web3signer.dsl.Eth;
+import tech.pegasys.web3signer.dsl.PublicContracts;
+import tech.pegasys.web3signer.dsl.Transactions;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -52,12 +54,17 @@ public class BesuNode {
   private static final BigInteger SPURIOUS_DRAGON_HARD_FORK_BLOCK = BigInteger.valueOf(1);
 
   private final BesuNodeConfig besuNodeConfig;
+
+  @SuppressWarnings("unused")
   private final String[] args;
+
   private final Map<String, String> environment;
   private final Properties portsProperties = new Properties();
   private Accounts accounts;
   private Future<ProcessResult> besuProcess;
+  private Transactions transactions;
   private Web3j jsonRpc;
+  private PublicContracts publicContracts;
   private BesuNodePorts besuNodePorts;
 
   BesuNode(final BesuNodeConfig besuNodeConfig, String[] args, Map<String, String> environment) {
@@ -130,6 +137,8 @@ public class BesuNode {
     final Eth eth = new Eth(jsonRpc);
 
     accounts = new Accounts(eth);
+    publicContracts = new PublicContracts(eth);
+    transactions = new Transactions(eth);
   }
 
   public BesuNodePorts ports() {
@@ -158,5 +167,13 @@ public class BesuNode {
     } catch (final IOException e) {
       throw new RuntimeException("Error reading Besu ports file", e);
     }
+  }
+
+  public PublicContracts publicContracts() {
+    return publicContracts;
+  }
+
+  public Transactions transactions() {
+    return transactions;
   }
 }

@@ -13,7 +13,6 @@
 package tech.pegasys.web3signer.core.service.jsonrpc.handlers.internalresponse;
 
 import static tech.pegasys.web3signer.core.service.jsonrpc.response.JsonRpcError.INVALID_PARAMS;
-import static tech.pegasys.web3signer.core.service.jsonrpc.response.JsonRpcError.SIGNING_FROM_IS_NOT_AN_UNLOCKED_ACCOUNT;
 
 import tech.pegasys.web3signer.core.service.jsonrpc.EthSendTransactionJsonParameters;
 import tech.pegasys.web3signer.core.service.jsonrpc.JsonDecoder;
@@ -55,7 +54,8 @@ public class EthSignTransactionResultProvider implements ResultProvider<String> 
     try {
       ethSendTransactionJsonParameters =
           fromRpcRequestToJsonParam(EthSendTransactionJsonParameters.class, request);
-      transaction = createTransaction(request, ethSendTransactionJsonParameters);
+      transaction =
+          new EthTransaction(chainId, ethSendTransactionJsonParameters, null, request.getId());
 
     } catch (final NumberFormatException e) {
       LOG.debug("Parsing values failed for request: {}", request.getParams(), e);
@@ -71,19 +71,10 @@ public class EthSignTransactionResultProvider implements ResultProvider<String> 
     }
 
     LOG.debug("Obtaining signer for {}", transaction.sender());
-    try {
-      final TransactionSerializer transactionSerializer =
-          new TransactionSerializer(signerProvider, chainId, transaction.sender());
-      return transactionSerializer.serialize(transaction);
-    } catch (Exception e) {
-      LOG.debug("From address ({}) does not match any available account", transaction.sender());
-      throw new JsonRpcException(SIGNING_FROM_IS_NOT_AN_UNLOCKED_ACCOUNT);
-    }
-  }
 
-  private Transaction createTransaction(
-      final JsonRpcRequest request, final EthSendTransactionJsonParameters params) {
-    return new EthTransaction(params, null, request.getId());
+    final TransactionSerializer transactionSerializer =
+        new TransactionSerializer(signerProvider, chainId);
+    return transactionSerializer.serialize(transaction);
   }
 
   public <T> T fromRpcRequestToJsonParam(final Class<T> type, final JsonRpcRequest request) {

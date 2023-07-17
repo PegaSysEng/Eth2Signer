@@ -35,6 +35,7 @@ import java.security.interfaces.ECPublicKey;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -109,6 +110,10 @@ public class EthSignTransactionResultProviderTest {
 
   @Test
   public void signatureHasTheExpectedFormat() {
+    final Credentials cs =
+        Credentials.create("0x1618fc3e47aec7e70451256e033b9edb67f4c469258d8e2fbb105552f141ae41");
+    final ECPublicKey key = EthPublicKeyUtils.createPublicKey(cs.getEcKeyPair().getPublicKey());
+    final String addr = Keys.getAddress(EthPublicKeyUtils.toHexString(key));
 
     final BigInteger v = BigInteger.ONE;
     final BigInteger r = BigInteger.TWO;
@@ -117,6 +122,9 @@ public class EthSignTransactionResultProviderTest {
         .when(mockSigner)
         .sign(any(Bytes.class));
 
+    doReturn(Set.of(EthPublicKeyUtils.toHexString(key)))
+        .when(mockSignerProvider)
+        .availableIdentifiers();
     doReturn(Optional.of(mockSigner)).when(mockSignerProvider).getSigner(anyString());
     final EthSignTransactionResultProvider resultProvider =
         new EthSignTransactionResultProvider(chainId, mockSignerProvider, jsonDecoder);
@@ -124,7 +132,9 @@ public class EthSignTransactionResultProviderTest {
     final JsonRpcRequest request = new JsonRpcRequest("2.0", "eth_signTransaction");
     final int id = 1;
     request.setId(new JsonRpcRequestId(id));
-    request.setParams(List.of(getTxParameters()));
+    final JsonObject params = getTxParameters();
+    params.put("from", addr);
+    request.setParams(params);
 
     final Object result = resultProvider.createResponseResult(request);
     assertThat(result).isInstanceOf(String.class);
@@ -170,7 +180,9 @@ public class EthSignTransactionResultProviderTest {
             })
         .when(mockSigner)
         .sign(any(Bytes.class));
-
+    doReturn(Set.of(EthPublicKeyUtils.toHexString(key)))
+        .when(mockSignerProvider)
+        .availableIdentifiers();
     doReturn(Optional.of(mockSigner)).when(mockSignerProvider).getSigner(anyString());
     final EthSignTransactionResultProvider resultProvider =
         new EthSignTransactionResultProvider(chainId, mockSignerProvider, jsonDecoder);
@@ -192,7 +204,7 @@ public class EthSignTransactionResultProviderTest {
 
   private static JsonObject getTxParameters() {
     final JsonObject jsonObject = new JsonObject();
-    jsonObject.put("from", "0xf17f52151ebef6c7334fad080c5704d77216b732");
+    jsonObject.put("from", "0x0c8f735bc186ea3842e640ffdcb474def3e767a0");
     jsonObject.put("to", "0x627306090abaB3A6e1400e9345bC60c78a8BEf57");
     jsonObject.put("gasPrice", "0x0");
     jsonObject.put("gas", "0x7600");

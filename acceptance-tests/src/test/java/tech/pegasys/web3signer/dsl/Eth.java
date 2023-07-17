@@ -12,12 +12,21 @@
  */
 package tech.pegasys.web3signer.dsl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import tech.pegasys.web3signer.core.service.jsonrpc.response.JsonRpcErrorResponse;
+import tech.pegasys.web3signer.dsl.signer.SignerResponse;
+
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
+import org.web3j.protocol.core.methods.request.Transaction;
+import org.web3j.protocol.core.methods.response.EthSendTransaction;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
 public class Eth {
 
@@ -27,11 +36,49 @@ public class Eth {
     this.jsonRpc = jsonRpc;
   }
 
+  public String sendTransaction(final Transaction transaction) throws IOException {
+    final EthSendTransaction response = jsonRpc.ethSendTransaction(transaction).send();
+
+    assertThat(response.getTransactionHash()).isNotEmpty();
+    assertThat(response.getError()).isNull();
+
+    return response.getTransactionHash();
+  }
+
+  public SignerResponse<JsonRpcErrorResponse> sendTransactionExpectsError(
+      final Transaction transaction) throws IOException {
+    final EthSendTransaction response = jsonRpc.ethSendTransaction(transaction).send();
+    assertThat(response.hasError()).isTrue();
+    return SignerResponse.fromWeb3jErrorResponse(response);
+  }
+
+  public BigInteger getTransactionCount(final String address) throws IOException {
+    return jsonRpc
+        .ethGetTransactionCount(address, DefaultBlockParameterName.LATEST)
+        .send()
+        .getTransactionCount();
+  }
+
+  public Optional<TransactionReceipt> getTransactionReceipt(final String hash) throws IOException {
+    return jsonRpc.ethGetTransactionReceipt(hash).send().getTransactionReceipt();
+  }
+
   public List<String> getAccounts() throws IOException {
     return jsonRpc.ethAccounts().send().getAccounts();
   }
 
+  public String getCode(final String address) throws IOException {
+    return jsonRpc.ethGetCode(address, DefaultBlockParameterName.LATEST).send().getResult();
+  }
+
   public BigInteger getBalance(final String account) throws IOException {
     return jsonRpc.ethGetBalance(account, DefaultBlockParameterName.LATEST).send().getBalance();
+  }
+
+  public String call(final Transaction contractViewOperation) throws IOException {
+    return jsonRpc
+        .ethCall(contractViewOperation, DefaultBlockParameterName.LATEST)
+        .send()
+        .getValue();
   }
 }

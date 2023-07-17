@@ -33,6 +33,8 @@ import tech.pegasys.web3signer.core.service.jsonrpc.handlers.RequestMapper;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.internalresponse.EthSignResultProvider;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.internalresponse.EthSignTransactionResultProvider;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.internalresponse.InternalResponseHandler;
+import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.SendTransactionHandler;
+import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.transaction.TransactionFactory;
 import tech.pegasys.web3signer.keystorage.hashicorp.HashicorpConnectionFactory;
 import tech.pegasys.web3signer.signing.ArtifactSignerProvider;
 import tech.pegasys.web3signer.signing.EthSecpArtifactSigner;
@@ -65,12 +67,14 @@ public class Eth1Runner extends Runner {
   public static final String ROOT_PATH = "/";
   public static final String SIGN_PATH = "/api/v1/eth1/sign/:identifier";
   private final Eth1Config eth1Config;
+  private final long chainId;
 
   private final HttpResponseFactory responseFactory = new HttpResponseFactory();
 
   public Eth1Runner(final BaseConfig baseConfig, final Eth1Config eth1Config) {
     super(baseConfig);
     this.eth1Config = eth1Config;
+    this.chainId = eth1Config.getChainId().id();
   }
 
   @Override
@@ -184,6 +188,11 @@ public class Eth1Runner extends Runner {
     final PassThroughHandler defaultHandler =
         new PassThroughHandler(transmitterFactory, jsonDecoder);
 
+    final TransactionFactory transactionFactory =
+        new TransactionFactory(chainId, jsonDecoder, transmitterFactory);
+    final SendTransactionHandler sendTransactionHandler =
+        new SendTransactionHandler(chainId, signerProvider, transactionFactory, transmitterFactory);
+
     final RequestMapper requestMapper = new RequestMapper(defaultHandler);
     requestMapper.addHandler(
         "eth_accounts",
@@ -196,8 +205,9 @@ public class Eth1Runner extends Runner {
         "eth_signTransaction",
         new InternalResponseHandler<>(
             responseFactory,
-            new EthSignTransactionResultProvider(
-                eth1Config.getChainId().id(), signerProvider, jsonDecoder)));
+            new EthSignTransactionResultProvider(chainId, signerProvider, jsonDecoder)));
+    requestMapper.addHandler("eth_sendTransaction", sendTransactionHandler);
+    requestMapper.addHandler("eea_sendTransaction", sendTransactionHandler);
 
     return requestMapper;
   }

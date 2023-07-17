@@ -34,12 +34,6 @@ public interface Transaction {
 
   byte[] rlpEncode(SignatureData signatureData);
 
-  default byte[] rlpEncode(final long chainId) {
-    final SignatureData signatureData =
-        new SignatureData(longToBytes(chainId), new byte[] {}, new byte[] {});
-    return rlpEncode(signatureData);
-  }
-
   boolean isNonceUserSpecified();
 
   String sender();
@@ -64,4 +58,6 @@ public interface Transaction {
   }
 
   JsonRpcRequestId getId();
+
+  boolean isEip1559();
 }
