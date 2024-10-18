@@ -13,15 +13,18 @@
 package tech.pegasys.web3signer.core.service.jsonrpc;
 
 import static tech.pegasys.web3signer.core.service.jsonrpc.RpcUtil.decodeBigInteger;
+import static tech.pegasys.web3signer.core.service.jsonrpc.RpcUtil.decodeBytesList;
 import static tech.pegasys.web3signer.core.service.jsonrpc.RpcUtil.validateNotEmpty;
 
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import org.apache.tuweni.bytes.Bytes;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class EthSendTransactionJsonParameters {
@@ -34,6 +37,9 @@ public class EthSendTransactionJsonParameters {
   private String data;
   private BigInteger maxFeePerGas;
   private BigInteger maxPriorityFeePerGas;
+  private BigInteger maxFeePerBlobGas;
+  private List<Bytes> versionedHashes;
+
 
   @JsonCreator
   public EthSendTransactionJsonParameters(@JsonProperty("from") final String sender) {
@@ -81,6 +87,16 @@ public class EthSendTransactionJsonParameters {
     this.maxFeePerGas = decodeBigInteger(maxFeePerGas);
   }
 
+  @JsonSetter("maxFeePerBlobGas")
+  public void maxFeePerBlobGas(final String maxFeePerBlobGas) {
+    this.maxFeePerBlobGas = decodeBigInteger(maxFeePerBlobGas);
+  }
+
+  @JsonSetter("versionedHashes")
+  public void versionedHashes(final List<String> versionedHashes) {
+    this.versionedHashes = decodeBytesList(versionedHashes);
+  }
+
   public Optional<String> data() {
     return Optional.ofNullable(data);
   }
@@ -115,5 +131,13 @@ public class EthSendTransactionJsonParameters {
 
   public Optional<BigInteger> maxFeePerGas() {
     return Optional.ofNullable(maxFeePerGas);
+  }
+
+  public Optional<BigInteger> maxFeePerBlobGas() {
+    return Optional.ofNullable(maxFeePerBlobGas);
+  }
+
+  public Optional<List<Bytes>> versionedHashes() {
+    return Optional.ofNullable(versionedHashes);
   }
 }

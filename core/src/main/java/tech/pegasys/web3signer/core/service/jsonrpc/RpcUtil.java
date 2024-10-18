@@ -19,10 +19,12 @@ import tech.pegasys.web3signer.core.service.jsonrpc.response.JsonRpcErrorRespons
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
+import org.apache.tuweni.bytes.Bytes;
 
 public class RpcUtil {
   public static final String JSON_RPC_VERSION = "2.0";
@@ -56,6 +58,10 @@ public class RpcUtil {
 
   static BigInteger decodeBigInteger(final String value) {
     return value == null ? null : decodeQuantity(value);
+  }
+
+  static List<Bytes> decodeBytesList(final List<String> value) {
+    return value.stream().map(Bytes::fromHexString).collect(Collectors.toList());
   }
 
   public static JsonRpcError determineErrorCode(final String body, final JsonDecoder decoder) {

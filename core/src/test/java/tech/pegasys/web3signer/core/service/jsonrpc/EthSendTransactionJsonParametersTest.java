@@ -17,9 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.transaction.TransactionFactory;
 
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Optional;
 
 import io.vertx.core.json.JsonObject;
+import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +39,13 @@ public class EthSendTransactionJsonParametersTest {
       final JsonObject object, final String key) {
     final String value = object.getString(key);
     return Optional.of(new BigInteger(value.substring(2), 16));
+  }
+
+  private Optional<List<Bytes>> getListAsOptionalBytesList(
+      final JsonObject object, final String key) {
+    final List<String> value;
+    value = object.getJsonArray(key).getList();
+    return Optional.of(RpcUtil.decodeBytesList(value));
   }
 
   @Test
@@ -72,6 +81,29 @@ public class EthSendTransactionJsonParametersTest {
         .isEqualTo(getStringAsOptionalBigInteger(parameters, "maxPriorityFeePerGas"));
     assertThat(txnParams.maxFeePerGas())
         .isEqualTo(getStringAsOptionalBigInteger(parameters, "maxFeePerGas"));
+  }
+
+  @Test
+  public void eip4844TransactionStoredInJsonArrayCanBeDecoded() {
+    final JsonObject parameters = validEip4844EthTransactionParameters();
+
+    final JsonRpcRequest request = wrapParametersInRequest(parameters);
+    final EthSendTransactionJsonParameters txnParams =
+        factory.fromRpcRequestToJsonParam(EthSendTransactionJsonParameters.class, request);
+
+    assertThat(txnParams.gas()).isEqualTo(getStringAsOptionalBigInteger(parameters, "gas"));
+    assertThat(txnParams.gasPrice()).isEmpty();
+    assertThat(txnParams.nonce()).isEqualTo(getStringAsOptionalBigInteger(parameters, "nonce"));
+    assertThat(txnParams.receiver()).isEqualTo(Optional.of(parameters.getString("to")));
+    assertThat(txnParams.value()).isEqualTo(getStringAsOptionalBigInteger(parameters, "value"));
+    assertThat(txnParams.maxPriorityFeePerGas())
+        .isEqualTo(getStringAsOptionalBigInteger(parameters, "maxPriorityFeePerGas"));
+    assertThat(txnParams.maxFeePerGas())
+        .isEqualTo(getStringAsOptionalBigInteger(parameters, "maxFeePerGas"));
+    assertThat(txnParams.maxFeePerBlobGas())
+        .isEqualTo(getStringAsOptionalBigInteger(parameters, "maxFeePerBlobGas"));
+    assertThat(txnParams.versionedHashes())
+        .isEqualTo(getListAsOptionalBytesList(parameters, "versionedHashes"));
   }
 
   @Test
@@ -135,6 +167,16 @@ public class EthSendTransactionJsonParametersTest {
     parameters.put("maxPriorityFeePerGas", "0x9184e72a000");
     parameters.put("gasPrice", null);
 
+    return parameters;
+  }
+
+  private JsonObject validEip4844EthTransactionParameters() {
+    final JsonObject parameters = validEip1559EthTransactionParameters();
+    parameters.put("maxFeePerBlobGas", "0x123456789");
+    parameters.put(
+        "versionedHashes",
+        List.of(
+            "0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"));
     return parameters;
   }
 

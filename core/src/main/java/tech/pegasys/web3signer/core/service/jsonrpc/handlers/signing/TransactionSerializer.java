@@ -24,11 +24,14 @@ import tech.pegasys.web3signer.signing.SecpArtifactSignature;
 import tech.pegasys.web3signer.signing.secp256k1.Signature;
 
 import java.nio.ByteBuffer;
+import java.util.Base64;
 
 import org.apache.tuweni.bytes.Bytes;
 import org.web3j.crypto.Sign.SignatureData;
 import org.web3j.crypto.TransactionEncoder;
 import org.web3j.crypto.transaction.type.TransactionType;
+
+import javax.crypto.spec.PSource;
 
 public class TransactionSerializer {
 
@@ -42,7 +45,9 @@ public class TransactionSerializer {
   }
 
   public String serialize(final Transaction transaction) {
-    if (transaction.isEip1559()) {
+    if (transaction.isEip4844()) {
+      return toHexString(serializeEip4844(transaction));
+    } else if (transaction.isEip1559()) {
       return toHexString(serializeEip1559(transaction));
     } else {
       return toHexString(serializeFrontier(transaction));
@@ -73,6 +78,23 @@ public class TransactionSerializer {
   private static byte[] prependEip1559TransactionType(byte[] bytesToSign) {
     return ByteBuffer.allocate(bytesToSign.length + 1)
         .put(TransactionType.EIP1559.getRlpType())
+        .put(bytesToSign)
+        .array();
+  }
+
+  private byte[] serializeEip4844(final Transaction transaction) {
+    byte[] bytesToSign = transaction.rlpEncodeToSign();
+    bytesToSign = prependEip4844TransactionType(bytesToSign);
+
+    final SignatureData signatureData = sign(transaction.sender(), bytesToSign);
+
+    byte[] serializedBytes = transaction.rlpEncode(signatureData);
+    return prependEip4844TransactionType(serializedBytes);
+  }
+
+  private static byte[] prependEip4844TransactionType(byte[] bytesToSign) {
+    return ByteBuffer.allocate(bytesToSign.length + 1)
+        .put(TransactionType.EIP4844.getRlpType())
         .put(bytesToSign)
         .array();
   }

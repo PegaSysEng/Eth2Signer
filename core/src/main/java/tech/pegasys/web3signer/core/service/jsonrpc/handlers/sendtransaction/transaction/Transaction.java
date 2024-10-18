@@ -33,6 +33,7 @@ public interface Transaction {
   void updateFieldsIfRequired();
 
   byte[] rlpEncode(SignatureData signatureData);
+  byte[] rlpEncodeToSign();
 
   boolean isNonceUserSpecified();
 
@@ -60,4 +61,6 @@ public interface Transaction {
   JsonRpcRequestId getId();
 
   boolean isEip1559();
+
+  boolean isEip4844();
 }

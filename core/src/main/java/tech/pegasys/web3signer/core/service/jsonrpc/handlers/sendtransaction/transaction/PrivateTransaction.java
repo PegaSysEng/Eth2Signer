@@ -65,6 +65,11 @@ public abstract class PrivateTransaction implements Transaction {
   }
 
   @Override
+  public byte[] rlpEncodeToSign() {
+    return rlpEncode(null);
+  }
+
+  @Override
   public boolean isNonceUserSpecified() {
     return transactionJsonParameters.nonce().isPresent();
   }
@@ -95,6 +100,11 @@ public abstract class PrivateTransaction implements Transaction {
   public boolean isEip1559() {
     return transactionJsonParameters.maxPriorityFeePerGas().isPresent()
         && transactionJsonParameters.maxFeePerGas().isPresent();
+  }
+
+  @Override
+  public boolean isEip4844() {
+    return false;
   }
 
   @Override

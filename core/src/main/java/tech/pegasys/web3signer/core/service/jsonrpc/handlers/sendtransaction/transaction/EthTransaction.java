@@ -12,13 +12,19 @@
  */
 package tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.transaction;
 
+import org.apache.tuweni.bytes.Bytes;
+import org.web3j.crypto.Sign;
+import org.web3j.rlp.RlpString;
+import org.web3j.utils.Numeric;
 import tech.pegasys.web3signer.core.service.jsonrpc.EthSendTransactionJsonParameters;
 import tech.pegasys.web3signer.core.service.jsonrpc.JsonRpcRequest;
 import tech.pegasys.web3signer.core.service.jsonrpc.JsonRpcRequestId;
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.NonceProvider;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.google.common.base.MoreObjects;
 import org.jetbrains.annotations.NotNull;
@@ -72,6 +78,41 @@ public class EthTransaction implements Transaction {
   }
 
   @Override
+  public byte[] rlpEncodeToSign() {
+    if (!isEip4844()) {
+      return rlpEncode(null);
+    }
+    // eip4844 transaction should be rlp encoded in another way
+    List<RlpType> resultTx = new ArrayList<>();
+
+    resultTx.add(RlpString.create(chainId));
+    resultTx.add(RlpString.create(nonce));
+    resultTx.add(RlpString.create(transactionJsonParameters.maxPriorityFeePerGas().orElseThrow()));
+    resultTx.add(RlpString.create(transactionJsonParameters.maxFeePerGas().orElseThrow()));
+    resultTx.add(RlpString.create(transactionJsonParameters.gas().orElse(DEFAULT_GAS)));
+
+    String to = transactionJsonParameters.receiver().orElse(DEFAULT_TO);
+    if (to.length() > 0) {
+      resultTx.add(RlpString.create(Numeric.hexStringToByteArray(to)));
+    } else {
+      resultTx.add(RlpString.create(""));
+    }
+
+    resultTx.add(RlpString.create(transactionJsonParameters.value().orElse(DEFAULT_VALUE)));
+    byte[] data = Numeric.hexStringToByteArray(transactionJsonParameters.data().orElse(DEFAULT_DATA));
+    resultTx.add(RlpString.create(data));
+
+    // access list
+    resultTx.add(new RlpList());
+
+    // Blob Transaction: max_fee_per_blob_gas and versioned_hashes
+    resultTx.add(RlpString.create(transactionJsonParameters.maxFeePerBlobGas().orElseThrow()));
+    resultTx.add(new RlpList(getRlpVersionedHashes(transactionJsonParameters.versionedHashes().orElseThrow())));
+
+    return RlpEncoder.encode(new RlpList(resultTx));
+  }
+
+  @Override
   public boolean isNonceUserSpecified() {
     return transactionJsonParameters.nonce().isPresent();
   }
@@ -99,6 +140,12 @@ public class EthTransaction implements Transaction {
   }
 
   @Override
+  public boolean isEip4844() {
+    return transactionJsonParameters.maxFeePerBlobGas().isPresent()
+        && transactionJsonParameters.versionedHashes().isPresent();
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("chainId", chainId)
@@ -110,7 +157,19 @@ public class EthTransaction implements Transaction {
   }
 
   protected RawTransaction createTransaction() {
-    if (isEip1559()) {
+    if (isEip4844()) {
+      return RawTransaction.createTransaction(
+          chainId,
+          nonce,
+          transactionJsonParameters.maxPriorityFeePerGas().orElseThrow(),
+          transactionJsonParameters.maxFeePerGas().orElseThrow(),
+          transactionJsonParameters.gas().orElse(DEFAULT_GAS),
+          transactionJsonParameters.receiver().orElse(DEFAULT_TO),
+          transactionJsonParameters.value().orElse(DEFAULT_VALUE),
+          transactionJsonParameters.data().orElse(DEFAULT_DATA),
+          transactionJsonParameters.maxFeePerBlobGas().orElseThrow(),
+          transactionJsonParameters.versionedHashes().orElseThrow());
+    } else if (isEip1559()) {
       return RawTransaction.createTransaction(
           chainId,
           nonce,
@@ -129,5 +188,11 @@ public class EthTransaction implements Transaction {
           transactionJsonParameters.value().orElse(DEFAULT_VALUE),
           transactionJsonParameters.data().orElse(DEFAULT_DATA));
     }
+  }
+
+  public List<RlpType> getRlpVersionedHashes(List<Bytes> versionedHashes) {
+    return versionedHashes.stream()
+            .map(hash -> RlpString.create(hash.toArray()))
+            .collect(Collectors.toList());
   }
 }
