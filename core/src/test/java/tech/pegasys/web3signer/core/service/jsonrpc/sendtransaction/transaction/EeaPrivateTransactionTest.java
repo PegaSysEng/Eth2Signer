@@ -24,12 +24,17 @@ import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.tra
 import tech.pegasys.web3signer.core.service.jsonrpc.handlers.sendtransaction.transaction.PrivateTransaction;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.web3j.crypto.Sign.SignatureData;
+import org.web3j.crypto.transaction.type.Transaction1559;
+import org.web3j.crypto.transaction.type.TransactionType;
 import org.web3j.protocol.eea.crypto.PrivateTransactionDecoder;
+import org.web3j.protocol.eea.crypto.RawPrivateTransaction;
 import org.web3j.protocol.eea.crypto.SignedRawPrivateTransaction;
 import org.web3j.utils.Base64String;
 import org.web3j.utils.Numeric;
@@ -90,6 +95,62 @@ public class EeaPrivateTransactionTest {
     assertThat(trimLeadingZeroes(decodedSignatureData.getV())).isEqualTo(new byte[] {1});
     assertThat(trimLeadingZeroes(decodedSignatureData.getR())).isEqualTo(new byte[] {2});
     assertThat(trimLeadingZeroes(decodedSignatureData.getS())).isEqualTo(new byte[] {3});
+  }
+
+  @Disabled("TODO SLD")
+  @Test
+  public void rlpEncodesEip1559Transaction() {
+    final EeaSendTransactionJsonParameters params =
+        new EeaSendTransactionJsonParameters(
+            "0x7577919ae5df4941180eac211965f275cdce314d",
+            "ZlapEsl9qDLPy/e88+/6yvCUEVIvH83y0N4A6wHuKXI=",
+            "restricted");
+    params.receiver("0xd46e8dd67c5d32be8058bb8eb970870f07244567");
+    params.gas("0x76c0");
+    params.maxPriorityFeePerGas("0x9184e72a000");
+    params.maxFeePerGas("0x9184e72a001");
+    params.value("0x0");
+    params.nonce("0x1");
+    params.data(
+        "0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675");
+    params.privateFor(new String[] {"GV8m0VZAccYGAAYMBuYQtKEj0XtpXeaw2APcoBmtA2w="});
+
+    privateTransaction =
+        EeaPrivateTransaction.from(1337L, params, () -> BigInteger.ZERO, new JsonRpcRequestId(1));
+
+    final SignatureData signatureData = null;
+    final byte[] rlpEncodedBytes = privateTransaction.rlpEncode(signatureData);
+    final String rlpString = Numeric.toHexString(prependEip1559TransactionType(rlpEncodedBytes));
+
+    final RawPrivateTransaction decodedTransaction = PrivateTransactionDecoder.decode(rlpString);
+    final Transaction1559 decoded1559Transaction =
+        (Transaction1559) decodedTransaction.getTransaction();
+    assertThat(decoded1559Transaction.getTo())
+        .isEqualTo("0xd46e8dd67c5d32be8058bb8eb970870f07244567");
+    assertThat(decoded1559Transaction.getGasLimit()).isEqualTo(decodeQuantity("0x76c0"));
+    assertThat(decoded1559Transaction.getMaxPriorityFeePerGas())
+        .isEqualTo(decodeQuantity("0x9184e72a000"));
+    assertThat(decoded1559Transaction.getMaxFeePerGas()).isEqualTo(decodeQuantity("0x9184e72a001"));
+    assertThat(decoded1559Transaction.getNonce()).isEqualTo(decodeQuantity("0x1"));
+    assertThat(decoded1559Transaction.getValue()).isEqualTo(decodeQuantity("0x0"));
+    assertThat(decoded1559Transaction.getData())
+        .isEqualTo(
+            "d46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675");
+    assertThat(decodedTransaction.getRestriction()).isEqualTo(Restriction.RESTRICTED);
+
+    final Base64String expectedDecodedPrivateFrom = params.privateFrom();
+    final Base64String expectedDecodedPrivateFor = params.privateFor().get().get(0);
+
+    assertThat(decodedTransaction.getPrivateFrom()).isEqualTo(expectedDecodedPrivateFrom);
+    assertThat(decodedTransaction.getPrivateFor().get().get(0))
+        .isEqualTo(expectedDecodedPrivateFor);
+  }
+
+  private static byte[] prependEip1559TransactionType(byte[] bytesToSign) {
+    return ByteBuffer.allocate(bytesToSign.length + 1)
+        .put(TransactionType.EIP1559.getRlpType())
+        .put(bytesToSign)
+        .array();
   }
 
   @Test

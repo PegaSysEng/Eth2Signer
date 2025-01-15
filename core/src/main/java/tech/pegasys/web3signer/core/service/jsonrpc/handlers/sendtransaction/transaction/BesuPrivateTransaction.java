@@ -51,14 +51,29 @@ public class BesuPrivateTransaction extends PrivateTransaction {
 
   @Override
   protected RawPrivateTransaction createTransaction() {
-    return RawPrivateTransaction.createTransaction(
-        nonce,
-        transactionJsonParameters.gasPrice().orElse(DEFAULT_GAS_PRICE),
-        transactionJsonParameters.gas().orElse(DEFAULT_GAS),
-        transactionJsonParameters.receiver().orElse(DEFAULT_TO),
-        transactionJsonParameters.data().orElse(DEFAULT_DATA),
-        transactionJsonParameters.privateFrom(),
-        privacyGroupId,
-        Restriction.fromString(transactionJsonParameters.restriction()));
+    if (transactionJsonParameters.maxPriorityFeePerGas().isPresent()
+        && transactionJsonParameters.maxFeePerGas().isPresent()) {
+      return RawPrivateTransaction.createTransaction(
+          chainId,
+          nonce,
+          transactionJsonParameters.maxPriorityFeePerGas().orElseThrow(),
+          transactionJsonParameters.maxFeePerGas().orElseThrow(),
+          transactionJsonParameters.gas().orElse(DEFAULT_GAS),
+          transactionJsonParameters.receiver().orElse(DEFAULT_TO),
+          transactionJsonParameters.data().orElse(DEFAULT_DATA),
+          transactionJsonParameters.privateFrom(),
+          privacyGroupId,
+          Restriction.fromString(transactionJsonParameters.restriction()));
+    } else {
+      return RawPrivateTransaction.createTransaction(
+          nonce,
+          transactionJsonParameters.gasPrice().orElse(DEFAULT_GAS_PRICE),
+          transactionJsonParameters.gas().orElse(DEFAULT_GAS),
+          transactionJsonParameters.receiver().orElse(DEFAULT_TO),
+          transactionJsonParameters.data().orElse(DEFAULT_DATA),
+          transactionJsonParameters.privateFrom(),
+          privacyGroupId,
+          Restriction.fromString(transactionJsonParameters.restriction()));
+    }
   }
 }
