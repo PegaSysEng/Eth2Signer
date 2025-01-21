@@ -213,10 +213,6 @@ public class Web3SignerBaseCommand implements BaseConfig, Runnable {
       paramLabel = INTEGER_FORMAT_HELP)
   private Integer vertxWorkerPoolSize = null;
 
-  @Deprecated(forRemoval = true)
-  @Option(names = "--Xworker-pool-size", hidden = true)
-  private Integer deprecatedWorkerPoolSize = null;
-
   @CommandLine.Mixin private PicoCliTlsServerOptions picoCliTlsServerOptions;
 
   @Override
@@ -323,17 +319,8 @@ public class Web3SignerBaseCommand implements BaseConfig, Runnable {
 
   @Override
   public int getVertxWorkerPoolSize() {
-    // both values are not allowed on cli, they will be verified in validateArgs() ...
-    if (vertxWorkerPoolSize != null && deprecatedWorkerPoolSize != null) {
-      return -1;
-    }
-
     if (vertxWorkerPoolSize != null) {
       return vertxWorkerPoolSize;
-    }
-
-    if (deprecatedWorkerPoolSize != null) {
-      return deprecatedWorkerPoolSize;
     }
 
     return VERTX_WORKER_POOL_SIZE_DEFAULT;
@@ -385,12 +372,6 @@ public class Web3SignerBaseCommand implements BaseConfig, Runnable {
           spec.commandLine(),
           "--metrics-enabled option and --metrics-push-enabled option can't be used at the same "
               + "time.  Please refer to CLI reference for more details about this constraint.");
-    }
-
-    if (vertxWorkerPoolSize != null && deprecatedWorkerPoolSize != null) {
-      throw new CommandLine.MutuallyExclusiveArgsException(
-          spec.commandLine(),
-          "--vertx-worker-pool-size option and --Xworker-pool-size option can't be used at the same time.");
     }
   }
 

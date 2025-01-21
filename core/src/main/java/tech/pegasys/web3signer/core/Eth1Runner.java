@@ -116,6 +116,7 @@ public class Eth1Runner extends Runner {
                       .getValues());
               return signers;
             },
+            Optional.empty(),
             Optional.empty());
 
     // uses eth1 address as identifier
@@ -148,13 +149,12 @@ public class Eth1Runner extends Runner {
               awsKmsSignerFactory,
               true);
 
-      return new SignerLoader(baseConfig.keystoreParallelProcessingEnabled())
-          .load(
-              baseConfig.getKeyConfigPath(),
-              "yaml",
-              new YamlSignerParser(
-                  List.of(ethSecpArtifactSignerFactory),
-                  YamlMapperFactory.createYamlMapper(baseConfig.getKeyStoreConfigFileMaxSize())));
+      return SignerLoader.load(
+          baseConfig.getKeyConfigPath(),
+          new YamlSignerParser(
+              List.of(ethSecpArtifactSignerFactory),
+              YamlMapperFactory.createYamlMapper(baseConfig.getKeyStoreConfigFileMaxSize())),
+          baseConfig.keystoreParallelProcessingEnabled());
     }
   }
 

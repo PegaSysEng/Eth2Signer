@@ -560,21 +560,6 @@ class CommandlineParserTest {
   }
 
   @Test
-  void vertxWorkerPoolSizeWithWorkerPoolSizeFailsToParse() {
-    String cmdline = validBaseCommandOptions();
-    cmdline +=
-        "--vertx-worker-pool-size=30 --Xworker-pool-size=40 eth2 --slashing-protection-enabled=false";
-
-    parser.registerSubCommands(new MockEth2SubCommand());
-    final int result = parser.parseCommandLine(cmdline.split(" "));
-
-    assertThat(result).isNotZero();
-    assertThat(commandError.toString())
-        .contains(
-            "Error parsing parameters: --vertx-worker-pool-size option and --Xworker-pool-size option can't be used at the same time.");
-  }
-
-  @Test
   void vertxWorkerPoolSizeDefaultParsesSuccessfully() {
     String cmdline = validBaseCommandOptions();
     cmdline += "eth2 --slashing-protection-enabled=false";
@@ -585,19 +570,6 @@ class CommandlineParserTest {
 
     assertThat(result).isZero();
     assertThat(mockEth2SubCommand.getConfig().getVertxWorkerPoolSize()).isEqualTo(20);
-  }
-
-  @Test
-  void vertxWorkerPoolSizeDeprecatedParsesSuccessfully() {
-    String cmdline = validBaseCommandOptions();
-    cmdline += "--Xworker-pool-size=40 eth2 --slashing-protection-enabled=false";
-
-    MockEth2SubCommand mockEth2SubCommand = new MockEth2SubCommand();
-    parser.registerSubCommands(mockEth2SubCommand);
-    final int result = parser.parseCommandLine(cmdline.split(" "));
-
-    assertThat(result).isZero();
-    assertThat(mockEth2SubCommand.getConfig().getVertxWorkerPoolSize()).isEqualTo(40);
   }
 
   @Test
@@ -688,7 +660,9 @@ class CommandlineParserTest {
     @Override
     protected List<ArtifactSignerProvider> createArtifactSignerProvider(
         final Vertx vertx, final MetricsSystem metricsSystem) {
-      return List.of(new DefaultArtifactSignerProvider(Collections::emptyList, Optional.empty()));
+      return List.of(
+          new DefaultArtifactSignerProvider(
+              Collections::emptyList, Optional.empty(), Optional.empty()));
     }
 
     @Override

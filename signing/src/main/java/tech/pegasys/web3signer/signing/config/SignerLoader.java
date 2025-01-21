@@ -15,6 +15,7 @@ package tech.pegasys.web3signer.signing.config;
 import tech.pegasys.web3signer.keystorage.common.MappedResults;
 import tech.pegasys.web3signer.signing.ArtifactSigner;
 import tech.pegasys.web3signer.signing.config.metadata.SigningMetadata;
+import tech.pegasys.web3signer.signing.config.metadata.SigningMetadataException;
 import tech.pegasys.web3signer.signing.config.metadata.parser.SignerParser;
 
 import java.io.IOException;
@@ -26,13 +27,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -45,80 +47,188 @@ import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * The SignerLoaded loads the metadata files and converts them to ArtifactSigners. This class keeps
+ * track of the metadata files and ArtifactSigners that have been read and only reads them again if
+ * they have been modified. It also removes the cached ArtifactSigners if the metadata file has been
+ * removed.
+ */
 public class SignerLoader {
 
   private static final Logger LOG = LogManager.getLogger();
   private static final long FILES_PROCESSED_TO_REPORT = 10;
-  // enable or disable parallel streams to convert and load private keys from metadata files
-  private final boolean useParallelStreams;
+  private static final Set<String> CONFIG_FILE_EXTENSIONS = Set.of("yaml", "yml");
 
-  private static final Map<Path, FileTime> metadataConfigFilesPathCache = new HashMap<>();
+  record CachedArtifactSigners(
+      Path metadataFile, FileTime lastModifiedTime, Set<ArtifactSigner> artifactSigners) {}
 
-  public SignerLoader(final boolean useParallelStreams) {
-    this.useParallelStreams = useParallelStreams;
-  }
+  private static final Map<Path, CachedArtifactSigners> cachedArtifactSigners =
+      new ConcurrentHashMap<>();
 
-  public SignerLoader() {
-    this(true);
-  }
-
-  public MappedResults<ArtifactSigner> load(
-      final Path configsDirectory, final String fileExtension, final SignerParser signerParser) {
-    final Instant start = Instant.now();
+  /**
+   * Load ArtifactSigners for new or modified metadata files. Return cached ArtifactSigners if
+   * metadata files have not been modified. Remove cached ArtifactSigner if metadata file has been
+   * removed.
+   *
+   * @param configsDirectory Location of the metadata files
+   * @param signerParser An implementation of SignerParser to parse the metadata files
+   * @return A MappedResults of ArtifactSigners and error count
+   */
+  public static MappedResults<ArtifactSigner> load(
+      final Path configsDirectory,
+      final SignerParser signerParser,
+      final boolean useParallelStreams) {
     LOG.info("Loading signer configuration metadata files from {}", configsDirectory);
+    final Instant loadStartTime = Instant.now();
+    // get all metadata file paths from the config directory.
+    final Map<Path, CachedArtifactSigners> filteredPaths;
+    try {
+      filteredPaths = getMetadataConfigFiles(configsDirectory);
+    } catch (final IOException e) {
+      LOG.error("Unable to access the supplied key directory", e);
+      return MappedResults.errorResult();
+    }
 
-    final ConfigFileContent configFileContent =
-        getNewOrModifiedConfigFilesContents(configsDirectory, fileExtension);
+    // remove cached metadata file mappings that have been deleted or not loaded
+    var cachedArtifactSignerSize = cachedArtifactSigners.size();
+    cachedArtifactSigners.keySet().removeIf(path -> !filteredPaths.containsKey(path));
+    if (cachedArtifactSignerSize != cachedArtifactSigners.size()) {
+      LOG.info(
+          "Removed {} cached metadata files that has not been loaded.",
+          cachedArtifactSignerSize - cachedArtifactSigners.size());
+    }
 
+    // reload the metadata files that are either new or modified
     LOG.info(
-        "Signer configuration metadata files read in memory {} in {}",
-        configFileContent.getContentMap().size(),
-        calculateTimeTaken(start).orElse("unknown duration"));
+        "Loading and converting SigningMetadata to ArtifactSigner using {} streams ...",
+        useParallelStreams ? "parallel" : "sequential");
+    final Stream<Map.Entry<Path, CachedArtifactSigners>> pathStream =
+        useParallelStreams
+            ? filteredPaths.entrySet().parallelStream()
+            : filteredPaths.entrySet().stream();
 
-    final Instant conversionStartInstant = Instant.now();
-    // Step 1: convert yaml file content to list of SigningMetadata
-    final MappedResults<SigningMetadata> signingMetadataResults =
-        convertConfigFileContent(configFileContent.getContentMap(), signerParser);
-
-    LOG.debug(
-        "Signing configuration metadata files converted to signing metadata {}",
-        signingMetadataResults.getValues().size());
-
-    // Step 2: Convert SigningMetadata to ArtifactSigners. This involves connecting to remote
-    // Hashicorp vault, AWS, Azure or decrypting local keystore files.
-    final MappedResults<ArtifactSigner> artifactSigners =
-        mapMetadataToArtifactSigner(signingMetadataResults.getValues(), signerParser);
-
-    // merge error counts of config file parsing errors ...
-    artifactSigners.mergeErrorCount(signingMetadataResults.getErrorCount());
-    artifactSigners.mergeErrorCount(configFileContent.getErrorCount());
-
-    LOG.info(
-        "Total Artifact Signer loaded via configuration files: {}\nError count {}\nTime Taken: {}.",
-        artifactSigners.getValues().size(),
-        artifactSigners.getErrorCount(),
-        calculateTimeTaken(conversionStartInstant).orElse("unknown duration"));
-
-    return artifactSigners;
-  }
-
-  private MappedResults<SigningMetadata> convertConfigFileContent(
-      final Map<Path, String> contentMap, final SignerParser signerParser) {
+    final AtomicLong configFilesHandled = new AtomicLong(0);
     final AtomicInteger errorCount = new AtomicInteger(0);
-    final List<SigningMetadata> signingMetadataList =
-        contentMap.entrySet().parallelStream()
+    final Map<Path, Set<ArtifactSigner>> loadedArtSigners =
+        pathStream
+            .filter(SignerLoader::isModifiedOrNew)
             .flatMap(
                 entry -> {
+                  if (configFilesHandled.incrementAndGet() % FILES_PROCESSED_TO_REPORT == 0) {
+                    LOG.info("{} signing metadata processed", configFilesHandled.get());
+                  }
                   try {
-                    return signerParser.readSigningMetadata(entry.getValue()).stream();
-                  } catch (final Exception e) {
-                    renderException(e, entry.getKey().toString());
+                    return Stream.of(
+                        new SimpleEntry<>(
+                            entry.getKey(),
+                            Files.readString(entry.getKey(), StandardCharsets.UTF_8)));
+                  } catch (IOException e) {
+                    LOG.error("Error reading metadata config file: {}", entry.getKey(), e);
                     errorCount.incrementAndGet();
                     return Stream.empty();
                   }
                 })
-            .collect(Collectors.toList());
-    return MappedResults.newInstance(signingMetadataList, errorCount.get());
+            .flatMap(
+                entry -> {
+                  try {
+                    final List<SigningMetadata> signingMetadata =
+                        signerParser.readSigningMetadata(entry.getValue());
+                    return Stream.of(new SimpleEntry<>(entry.getKey(), signingMetadata));
+                  } catch (final SigningMetadataException e) {
+                    LOG.error(
+                        "Error parsing metadata file {} to signing metadata: {}",
+                        entry.getKey(),
+                        ExceptionUtils.getRootCauseMessage(e));
+                    errorCount.incrementAndGet();
+                    return Stream.empty();
+                  }
+                })
+            .flatMap(
+                entry -> {
+                  try {
+                    final Set<ArtifactSigner> artifactSigners =
+                        new HashSet<>(signerParser.parse(entry.getValue()));
+                    return Stream.of(new SimpleEntry<>(entry.getKey(), artifactSigners));
+                  } catch (final SigningMetadataException e) {
+                    LOG.error(
+                        "Error converting signing metadata to Artifact Signer: {}",
+                        ExceptionUtils.getRootCauseMessage(e));
+                    errorCount.incrementAndGet();
+                    return Stream.empty();
+                  }
+                })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    // merge the new loaded ArtifactSigners with the cached ones
+    loadedArtSigners.forEach(
+        (path, artifactSigners) -> {
+          cachedArtifactSigners.put(
+              path,
+              new CachedArtifactSigners(
+                  path, filteredPaths.get(path).lastModifiedTime, artifactSigners));
+        });
+
+    // return all ArtifactSigners from the cache. If same ArtifactSigner is loaded from multiple
+    // paths, only one will
+    // be returned.
+    final Collection<ArtifactSigner> allArtifactSigners =
+        cachedArtifactSigners.values().stream()
+            .flatMap(cachedArtifactSigners -> cachedArtifactSigners.artifactSigners.stream())
+            .collect(Collectors.toSet());
+
+    LOG.info(
+        "Total Artifact Signers loaded via configuration files: {}\nTotal Paths cached: {}, Error count: {}\nTime Taken: {}.",
+        allArtifactSigners.size(),
+        cachedArtifactSigners.size(),
+        errorCount.get(),
+        calculateTimeTaken(loadStartTime).orElse("unknown duration"));
+
+    return MappedResults.newInstance(allArtifactSigners, errorCount.get());
+  }
+
+  @VisibleForTesting
+  static void clearCache() {
+    cachedArtifactSigners.clear();
+  }
+
+  /**
+   * Load Metadata config file paths and their timestamps.
+   *
+   * @param configsDirectory Path to the directory containing the metadata files
+   * @return A map of metadata file paths and their last modified timestamps
+   * @throws IOException If there is an error reading the config directory.
+   */
+  private static Map<Path, CachedArtifactSigners> getMetadataConfigFiles(
+      final Path configsDirectory) throws IOException {
+    try (final Stream<Path> fileStream = Files.list(configsDirectory)) {
+      return fileStream
+          .filter(SignerLoader::validFileExtension)
+          .map(
+              path -> {
+                try {
+                  return new SimpleEntry<>(
+                      path,
+                      new CachedArtifactSigners(path, Files.getLastModifiedTime(path), Set.of()));
+                } catch (final IOException e) {
+                  // very unlikely to happen as Files.list is already successful.
+                  LOG.error("Error getting last modified time for config file: {}", path, e);
+                  return null;
+                }
+              })
+          .filter(Objects::nonNull)
+          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+  }
+
+  private static boolean isModifiedOrNew(final Map.Entry<Path, CachedArtifactSigners> entry) {
+    var metadataFilePath = entry.getKey();
+    var metadataFile = entry.getValue();
+    return !cachedArtifactSigners.containsKey(metadataFilePath)
+        || cachedArtifactSigners
+                .get(metadataFilePath)
+                .lastModifiedTime
+                .compareTo(metadataFile.lastModifiedTime)
+            != 0;
   }
 
   @VisibleForTesting
@@ -132,129 +242,9 @@ public class SignerLoader {
     return Optional.of(DurationFormatUtils.formatDurationHMS(timeTaken));
   }
 
-  private ConfigFileContent getNewOrModifiedConfigFilesContents(
-      final Path configsDirectory, final String fileExtension) {
-    // Step 1, read Paths in config directory without reading the file content since Files.list does
-    // not use parallel stream
-    final List<Path> filteredPaths;
-    try (final Stream<Path> fileStream = Files.list(configsDirectory)) {
-      filteredPaths =
-          fileStream
-              .filter(path -> matchesFileExtension(fileExtension, path))
-              .filter(this::isNewOrModifiedMetadataFile)
-              .collect(Collectors.toList());
-    } catch (final IOException e) {
-      LOG.error("Unable to access the supplied key directory", e);
-      return ConfigFileContent.withSingleErrorCount();
-    }
-
-    final AtomicInteger errorCount = new AtomicInteger(0);
-    // step 2, read file contents in parallel stream
-    final Map<Path, String> configFileMap =
-        filteredPaths.parallelStream()
-            .map(
-                path -> {
-                  try {
-                    return getMetadataFileContent(path);
-                  } catch (final IOException e) {
-                    errorCount.incrementAndGet();
-                    LOG.error("Error reading config file: {}", path, e);
-                    return null;
-                  }
-                })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-    return new ConfigFileContent(configFileMap, errorCount.get());
-  }
-
-  private boolean isNewOrModifiedMetadataFile(final Path path) {
-    // only read file if is not previously read or has been since modified
-    try {
-      final FileTime lastModifiedTime = Files.getLastModifiedTime(path);
-      if (metadataConfigFilesPathCache.containsKey(path)) {
-        if (metadataConfigFilesPathCache.get(path).compareTo(lastModifiedTime) == 0) {
-          return false;
-        }
-      }
-
-      // keep the path and last modified time in local cache
-      metadataConfigFilesPathCache.put(path, lastModifiedTime);
-      return true;
-    } catch (final IOException e) {
-      LOG.error("Error reading config file: {}", path, e);
-      return false;
-    }
-  }
-
-  private SimpleEntry<Path, String> getMetadataFileContent(final Path path) throws IOException {
-    return new SimpleEntry<>(path, Files.readString(path, StandardCharsets.UTF_8));
-  }
-
-  private MappedResults<ArtifactSigner> mapMetadataToArtifactSigner(
-      final Collection<SigningMetadata> signingMetadataCollection,
-      final SignerParser signerParser) {
-
-    if (signingMetadataCollection.isEmpty()) {
-      return MappedResults.newSetInstance();
-    }
-
-    LOG.info(
-        "Converting signing metadata to Artifact Signer using {} streams ...",
-        useParallelStreams ? "parallel" : "sequential");
-
-    try {
-      if (useParallelStreams) {
-        return mapToArtifactSigner(signingMetadataCollection.parallelStream(), signerParser);
-      } else {
-        return mapToArtifactSigner(signingMetadataCollection.stream(), signerParser);
-      }
-    } catch (final Exception e) {
-      LOG.error("Unexpected error in processing configuration files: {}", e.getMessage(), e);
-      return MappedResults.errorResult();
-    }
-  }
-
-  private MappedResults<ArtifactSigner> mapToArtifactSigner(
-      final Stream<SigningMetadata> signingMetadataStream, final SignerParser signerParser) {
-    final AtomicLong configFilesHandled = new AtomicLong();
-    final AtomicInteger errorCount = new AtomicInteger(0);
-
-    final Set<ArtifactSigner> artifactSigners =
-        signingMetadataStream
-            .flatMap(
-                metadataContent -> {
-                  final long filesProcessed = configFilesHandled.incrementAndGet();
-                  if (filesProcessed % FILES_PROCESSED_TO_REPORT == 0) {
-                    LOG.info("{} signing metadata processed", filesProcessed);
-                  }
-                  try {
-                    return signerParser.parse(List.of(metadataContent)).stream();
-                  } catch (final Exception e) {
-                    LOG.error(
-                        "Error converting signing metadata to Artifact Signer: {}", e.getMessage());
-                    LOG.debug(ExceptionUtils.getStackTrace(e));
-                    errorCount.incrementAndGet();
-                    return Stream.empty();
-                  }
-                })
-            .collect(Collectors.toSet());
-    LOG.debug("Signing metadata mapped to Artifact Signer: {}", artifactSigners.size());
-    return MappedResults.newInstance(artifactSigners, errorCount.get());
-  }
-
-  private boolean matchesFileExtension(final String validFileExtension, final Path filename) {
+  private static boolean validFileExtension(final Path filename) {
     final boolean isHidden = filename.toFile().isHidden();
     final String extension = FilenameUtils.getExtension(filename.toString());
-    return !isHidden
-        && extension.toLowerCase(Locale.ROOT).endsWith(validFileExtension.toLowerCase(Locale.ROOT));
-  }
-
-  private void renderException(final Throwable t, final String filename) {
-    LOG.error(
-        "Error parsing signing metadata file {}: {}",
-        filename,
-        ExceptionUtils.getRootCauseMessage(t));
-    LOG.debug(ExceptionUtils.getStackTrace(t));
+    return !isHidden && CONFIG_FILE_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT));
   }
 }

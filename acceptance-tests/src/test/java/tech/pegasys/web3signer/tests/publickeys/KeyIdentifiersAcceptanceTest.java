@@ -147,7 +147,7 @@ public class KeyIdentifiersAcceptanceTest extends KeyIdentifiersAcceptanceTestBa
 
   @ParameterizedTest
   @EnumSource(value = KeyType.class)
-  public void alreadyLoadedPublicKeysAreNotRemovedAfterReload(final KeyType keyType) {
+  public void publicKeysAreRemovedAfterReloadDefault(final KeyType keyType) {
     final String[] prvKeys = privateKeys(keyType);
     final String[] keys = createKeys(keyType, true, prvKeys);
 
@@ -161,7 +161,15 @@ public class KeyIdentifiersAcceptanceTest extends KeyIdentifiersAcceptanceTestBa
     // reload API call
     signer.callReload().then().statusCode(200);
 
-    validateApiResponse(signer.callApiPublicKeys(keyType), containsInAnyOrder(keys));
+    // reload is async ... assert that the key is removed
+    Awaitility.await()
+        .atMost(5, SECONDS)
+        .untilAsserted(
+            () -> {
+              final List<String> publicKeysList =
+                  signer.callApiPublicKeys(keyType).jsonPath().getList(".");
+              assertThat(publicKeysList).containsOnly(keys[0]);
+            });
   }
 
   @ParameterizedTest

@@ -22,27 +22,26 @@ import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
 
 public class ReloadHandler implements Handler<RoutingContext> {
-  List<ArtifactSignerProvider> orderedArtifactSignerProviders;
+  private final List<ArtifactSignerProvider> orderedArtifactSignerProviders;
 
-  public ReloadHandler(List<ArtifactSignerProvider> orderedArtifactSignerProviders) {
+  public ReloadHandler(final List<ArtifactSignerProvider> orderedArtifactSignerProviders) {
     this.orderedArtifactSignerProviders = orderedArtifactSignerProviders;
   }
 
   @Override
-  public void handle(RoutingContext routingContext) {
+  public void handle(final RoutingContext routingContext) {
 
     Executors.newSingleThreadExecutor()
         .submit(
             () ->
-                orderedArtifactSignerProviders.stream()
-                    .forEachOrdered(
-                        signer -> {
-                          try {
-                            signer.load().get();
-                          } catch (InterruptedException | ExecutionException e) {
-                            throw new RuntimeException(e);
-                          }
-                        }));
+                orderedArtifactSignerProviders.forEach(
+                    signer -> {
+                      try {
+                        signer.load().get();
+                      } catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                      }
+                    }));
     routingContext.response().setStatusCode(200).end();
   }
 }

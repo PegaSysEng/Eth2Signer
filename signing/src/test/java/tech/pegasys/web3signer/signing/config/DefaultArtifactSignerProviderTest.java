@@ -67,7 +67,9 @@ class DefaultArtifactSignerProviderTest {
     final ArtifactSigner mockSigner = mock(ArtifactSigner.class);
     when(mockSigner.getIdentifier()).thenReturn(PUBLIC_KEY1);
 
-    signerProvider = new DefaultArtifactSignerProvider(() -> List.of(mockSigner), Optional.empty());
+    signerProvider =
+        new DefaultArtifactSignerProvider(
+            () -> List.of(mockSigner), Optional.empty(), Optional.empty());
     assertThatCode(() -> signerProvider.load().get()).doesNotThrowAnyException();
 
     final Optional<ArtifactSigner> signer = signerProvider.getSigner(PUBLIC_KEY1);
@@ -84,7 +86,7 @@ class DefaultArtifactSignerProviderTest {
 
     signerProvider =
         new DefaultArtifactSignerProvider(
-            () -> List.of(mockSigner1, mockSigner2), Optional.empty());
+            () -> List.of(mockSigner1, mockSigner2), Optional.empty(), Optional.empty());
     assertThatCode(() -> signerProvider.load().get()).doesNotThrowAnyException();
 
     assertThat(signerProvider.availableIdentifiers()).hasSize(1);
@@ -100,7 +102,7 @@ class DefaultArtifactSignerProviderTest {
 
     signerProvider =
         new DefaultArtifactSignerProvider(
-            () -> List.of(mockSigner1, mockSigner2), Optional.empty());
+            () -> List.of(mockSigner1, mockSigner2), Optional.empty(), Optional.empty());
     assertThatCode(() -> signerProvider.load().get()).doesNotThrowAnyException();
     assertThat(signerProvider.availableIdentifiers()).hasSize(2);
     assertThat(signerProvider.availableIdentifiers()).containsOnly(PUBLIC_KEY1, PUBLIC_KEY2);
@@ -129,7 +131,9 @@ class DefaultArtifactSignerProviderTest {
 
     signerProvider =
         new DefaultArtifactSignerProvider(
-            () -> List.of(mockSigner1, mockSigner2), Optional.of(commitBoostParameters));
+            () -> List.of(mockSigner1, mockSigner2),
+            Optional.empty(),
+            Optional.of(commitBoostParameters));
 
     // methods under test
     assertThatCode(() -> signerProvider.load().get()).doesNotThrowAnyException();
@@ -167,7 +171,9 @@ class DefaultArtifactSignerProviderTest {
 
     signerProvider =
         new DefaultArtifactSignerProvider(
-            () -> List.of(mockSigner1, mockSigner2), Optional.of(commitBoostParameters));
+            () -> List.of(mockSigner1, mockSigner2),
+            Optional.empty(),
+            Optional.of(commitBoostParameters));
 
     // methods under test
     assertThatCode(() -> signerProvider.load().get()).doesNotThrowAnyException();

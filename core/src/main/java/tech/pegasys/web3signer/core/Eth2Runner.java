@@ -58,16 +58,18 @@ import tech.pegasys.web3signer.signing.config.metadata.parser.YamlSignerParser;
 import tech.pegasys.web3signer.signing.config.metadata.yubihsm.YubiHsmOpaqueDataProvider;
 import tech.pegasys.web3signer.slashingprotection.DbHealthCheck;
 import tech.pegasys.web3signer.slashingprotection.DbPrunerRunner;
+import tech.pegasys.web3signer.slashingprotection.PostLoadingValidatorsProcessor;
 import tech.pegasys.web3signer.slashingprotection.SlashingProtectionContext;
 import tech.pegasys.web3signer.slashingprotection.SlashingProtectionContextFactory;
 import tech.pegasys.web3signer.slashingprotection.SlashingProtectionParameters;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -155,30 +157,25 @@ public class Eth2Runner extends Runner {
       final Vertx vertx, final MetricsSystem metricsSystem) {
     return List.of(
         new DefaultArtifactSignerProvider(
-            () -> {
-              try (final AzureKeyVaultFactory azureKeyVaultFactory = new AzureKeyVaultFactory()) {
-                final List<ArtifactSigner> signers = new ArrayList<>();
-                signers.addAll(
-                    loadSignersFromKeyConfigFiles(vertx, azureKeyVaultFactory, metricsSystem)
-                        .getValues());
-                signers.addAll(bulkLoadSigners(azureKeyVaultFactory).getValues());
-
-                final List<Bytes> validators =
-                    signers.stream()
-                        .map(ArtifactSigner::getIdentifier)
-                        .map(Bytes::fromHexString)
-                        .collect(Collectors.toList());
-                if (validators.isEmpty()) {
-                  LOG.warn("No BLS keys loaded. Check that the key store has BLS key config files");
-                } else {
-                  slashingProtectionContext.ifPresent(
-                      context -> context.getRegisteredValidators().registerValidators(validators));
-                }
-
-                return signers;
-              }
-            },
+            createArtifactSignerSupplier(vertx, metricsSystem),
+            slashingProtectionContext.map(PostLoadingValidatorsProcessor::new),
             Optional.of(commitBoostApiParameters)));
+  }
+
+  private Supplier<Collection<ArtifactSigner>> createArtifactSignerSupplier(
+      final Vertx vertx, final MetricsSystem metricsSystem) {
+    return () -> {
+      try (final AzureKeyVaultFactory azureKeyVaultFactory = new AzureKeyVaultFactory()) {
+        final List<ArtifactSigner> signers = new ArrayList<>();
+        // load keys from key config files
+        signers.addAll(
+            loadSignersFromKeyConfigFiles(vertx, azureKeyVaultFactory, metricsSystem).getValues());
+        // bulk load keys
+        signers.addAll(bulkLoadSigners(azureKeyVaultFactory).getValues());
+
+        return signers;
+      }
+    };
   }
 
   private MappedResults<ArtifactSigner> loadSignersFromKeyConfigFiles(
@@ -204,14 +201,12 @@ public class Eth2Runner extends Runner {
               azureKeyVaultFactory);
 
       final MappedResults<ArtifactSigner> results =
-          new SignerLoader(baseConfig.keystoreParallelProcessingEnabled())
-              .load(
-                  baseConfig.getKeyConfigPath(),
-                  "yaml",
-                  new YamlSignerParser(
-                      List.of(artifactSignerFactory),
-                      YamlMapperFactory.createYamlMapper(
-                          baseConfig.getKeyStoreConfigFileMaxSize())));
+          SignerLoader.load(
+              baseConfig.getKeyConfigPath(),
+              new YamlSignerParser(
+                  List.of(artifactSignerFactory),
+                  YamlMapperFactory.createYamlMapper(baseConfig.getKeyStoreConfigFileMaxSize())),
+              baseConfig.keystoreParallelProcessingEnabled());
       registerSignerLoadingHealthCheck(KEYS_CHECK_CONFIG_FILE_LOADING, results);
 
       return results;
@@ -302,9 +297,7 @@ public class Eth2Runner extends Runner {
   @Override
   public void run() {
     super.run();
-    if (pruningEnabled && slashingProtectionContext.isPresent()) {
-      scheduleAndExecuteInitialDbPruning();
-    }
+    scheduleAndExecuteInitialDbPruning();
     slashingProtectionContext.ifPresent(this::scheduleDbHealthCheck);
   }
 
@@ -326,6 +319,10 @@ public class Eth2Runner extends Runner {
   }
 
   private void scheduleAndExecuteInitialDbPruning() {
+    if (!pruningEnabled || slashingProtectionContext.isEmpty()) {
+      return;
+    }
+
     final DbPrunerRunner dbPrunerRunner =
         new DbPrunerRunner(
             slashingProtectionParameters,

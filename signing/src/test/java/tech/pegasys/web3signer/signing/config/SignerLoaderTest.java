@@ -62,7 +62,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SignerLoaderTest {
   private static final YAMLMapper YAML_MAPPER = YamlMapperFactory.createYamlMapper();
-  private static final String FILE_EXTENSION = "yaml";
   @TempDir Path configsDirectory;
   @Mock private MetricsSystem metricsSystem;
   @Mock private HashicorpConnectionFactory hashicorpConnectionFactory;
@@ -77,7 +76,6 @@ class SignerLoaderTest {
   private static final BLSKeyPair blsKeyPair2 = BLSTestUtil.randomKeyPair(2);
   private static final BLSKeyPair blsKeyPair3 = BLSTestUtil.randomKeyPair(3);
 
-  private SignerLoader signerLoader;
   private SignerParser signerParser;
 
   @BeforeEach
@@ -108,7 +106,8 @@ class SignerLoaderTest {
     signerParser =
         new YamlSignerParser(
             List.of(blsArtifactSignerFactory), YamlMapperFactory.createYamlMapper());
-    signerLoader = new SignerLoader();
+
+    SignerLoader.clearCache();
   }
 
   @ParameterizedTest(name = "{index} - Signer created for file name {0}")
@@ -117,8 +116,9 @@ class SignerLoaderTest {
     final String privateKeyHex = blsKeyPair1.getSecretKey().toBytes().toHexString();
     createFileInConfigsDirectory(fileName, privateKeyHex);
 
+    SignerLoader.load(configsDirectory, signerParser, true);
     final Collection<ArtifactSigner> signerList =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser).getValues();
+        SignerLoader.load(configsDirectory, signerParser, true).getValues();
 
     assertThat(signerList.size()).isOne();
     assertThat(signerList.stream().findFirst().orElseThrow().getIdentifier())
@@ -130,7 +130,9 @@ class SignerLoaderTest {
         configFileName(blsKeyPair1),
         "prefix_" + configFileName(blsKeyPair1),
         "test.yaml",
-        "test.YAML");
+        "test.YAML",
+        "test.yml",
+        "test.YML");
   }
 
   @Test
@@ -140,7 +142,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(filename, privateKeyHex);
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).isEmpty();
     assertThat(result.getErrorCount()).isZero();
@@ -151,7 +153,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(configFileName(blsKeyPair1), "NOT_A_VALID_KEY");
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).isEmpty();
     assertThat(result.getErrorCount()).isOne();
@@ -161,7 +163,7 @@ class SignerLoaderTest {
   void failedWithDirectoryErrorReturnEmptySigner() throws IOException {
     final Path missingConfigDir = configsDirectory.resolve("idontexist");
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(missingConfigDir, FILE_EXTENSION, signerParser);
+        SignerLoader.load(missingConfigDir, signerParser, true);
 
     assertThat(result.getValues()).isEmpty();
     assertThat(result.getErrorCount()).isOne();
@@ -176,7 +178,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(filename2, privateKeyHex);
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).hasSize(1);
     assertThat(result.getErrorCount()).isZero();
@@ -187,7 +189,7 @@ class SignerLoaderTest {
     createEmptyFileInConfigsDirectory(configFileName(blsKeyPair1));
     createEmptyFileInConfigsDirectory(configFileName(blsKeyPair2));
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).isEmpty();
     assertThat(result.getErrorCount()).isEqualTo(2);
@@ -203,7 +205,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(configFileName(blsKeyPair2), privateKeyHex2);
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).hasSize(1);
     assertThat(result.getValues().stream().findFirst().orElseThrow().getIdentifier())
@@ -221,8 +223,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(configFileName(blsKeyPair2), privateKeyHex2);
     createFileInConfigsDirectory(configFileName(blsKeyPair3), privateKeyHex3);
 
-    MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+    MappedResults<ArtifactSigner> result = SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).hasSize(3);
     assertThat(
@@ -236,7 +237,7 @@ class SignerLoaderTest {
   }
 
   @Test
-  void callingLoadTwiceDoesNotReloadUnmodifiedConfigFiles() throws IOException {
+  void callingLoadTwiceReturnedSameNumberOfArtifacts() throws IOException {
     final String privateKeyHex1 = blsKeyPair1.getSecretKey().toBytes().toHexString();
     final String privateKeyHex2 = blsKeyPair2.getSecretKey().toBytes().toHexString();
     final String privateKeyHex3 = blsKeyPair3.getSecretKey().toBytes().toHexString();
@@ -246,7 +247,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(configFileName(blsKeyPair3), privateKeyHex3);
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).hasSize(3);
     assertThat(
@@ -259,12 +260,12 @@ class SignerLoaderTest {
             blsKeyPair3.getPublicKey().toHexString());
 
     final MappedResults<ArtifactSigner> reloadedResult =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
-    assertThat(reloadedResult.getValues()).isEmpty();
+        SignerLoader.load(configsDirectory, signerParser, true);
+    assertThat(reloadedResult.getValues()).hasSize(3);
   }
 
   @Test
-  void callingLoadTwiceOnlyLoadSignersFromModifiedConfigFiles() throws IOException {
+  void callingLoadTwiceWithRemovedFiles() throws IOException {
     final String privateKeyHex1 = blsKeyPair1.getSecretKey().toBytes().toHexString();
     final String privateKeyHex2 = blsKeyPair2.getSecretKey().toBytes().toHexString();
     final String privateKeyHex3 = blsKeyPair3.getSecretKey().toBytes().toHexString();
@@ -274,7 +275,7 @@ class SignerLoaderTest {
     createFileInConfigsDirectory(configFileName(blsKeyPair3), privateKeyHex3);
 
     final MappedResults<ArtifactSigner> result =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser);
+        SignerLoader.load(configsDirectory, signerParser, true);
 
     assertThat(result.getValues()).hasSize(3);
     assertThat(
@@ -286,14 +287,18 @@ class SignerLoaderTest {
             blsKeyPair2.getPublicKey().toHexString(),
             blsKeyPair3.getPublicKey().toHexString());
 
-    // recreate file - which would change the last modified time
-    createFileInConfigsDirectory(configFileName(blsKeyPair3), privateKeyHex3);
+    // remove file
+    Files.delete(configsDirectory.resolve(configFileName(blsKeyPair3)));
 
     final Collection<ArtifactSigner> reloadedArtifactSigner =
-        signerLoader.load(configsDirectory, FILE_EXTENSION, signerParser).getValues();
-    assertThat(reloadedArtifactSigner).hasSize(1);
-    assertThat(reloadedArtifactSigner.stream().findFirst().get().getIdentifier())
-        .isEqualTo(blsKeyPair3.getPublicKey().toHexString());
+        SignerLoader.load(configsDirectory, signerParser, true).getValues();
+    assertThat(reloadedArtifactSigner).hasSize(2);
+    assertThat(
+            reloadedArtifactSigner.stream()
+                .map(ArtifactSigner::getIdentifier)
+                .collect(Collectors.toList()))
+        .containsOnly(
+            blsKeyPair1.getPublicKey().toHexString(), blsKeyPair2.getPublicKey().toHexString());
   }
 
   @Test
@@ -325,7 +330,7 @@ class SignerLoaderTest {
   }
 
   private static String configFileName(final BLSKeyPair blsKeyPair) {
-    return String.format("%s.%s", blsKeyPair.getPublicKey().toHexString(), FILE_EXTENSION);
+    return blsKeyPair.getPublicKey().toHexString() + ".yaml";
   }
 
   private void createEmptyFileInConfigsDirectory(final String filename) throws IOException {

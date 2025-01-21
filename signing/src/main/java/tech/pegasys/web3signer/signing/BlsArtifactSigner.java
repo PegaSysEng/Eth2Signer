@@ -20,6 +20,7 @@ import tech.pegasys.web3signer.signing.util.IdentifierUtils;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.google.common.base.MoreObjects;
 import org.apache.tuweni.bytes.Bytes;
 
 public class BlsArtifactSigner implements ArtifactSigner {
@@ -76,5 +77,13 @@ public class BlsArtifactSigner implements ArtifactSigner {
   @Override
   public int hashCode() {
     return Objects.hash(keyPair);
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("keyPair", keyPair.getPublicKey())
+        .add("origin", origin)
+        .toString();
   }
 }
