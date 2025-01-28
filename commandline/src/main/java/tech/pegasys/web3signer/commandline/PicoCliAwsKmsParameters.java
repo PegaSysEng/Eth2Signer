@@ -16,9 +16,8 @@ import tech.pegasys.web3signer.common.config.AwsAuthenticationMode;
 import tech.pegasys.web3signer.signing.config.AwsVaultParameters;
 
 import java.net.URI;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import picocli.CommandLine.Option;
@@ -30,8 +29,9 @@ public class PicoCliAwsKmsParameters implements AwsVaultParameters {
   public static final String AWS_KMS_SECRET_ACCESS_KEY_OPTION = "--aws-kms-secret-access-key";
   public static final String AWS_KMS_REGION_OPTION = "--aws-kms-region";
   public static final String AWS_ENDPOINT_OVERRIDE_OPTION = "--aws-endpoint-override";
-  public static final String AWS_KMS_TAG_NAMES_FILTER_OPTION = "--aws-kms-tag-names-filter";
-  public static final String AWS_KMS_TAG_VALUES_FILTER_OPTION = "--aws-kms-tag-values-filter";
+  // public static final String AWS_KMS_TAG_NAMES_FILTER_OPTION = "--aws-kms-tag-names-filter";
+  // public static final String AWS_KMS_TAG_VALUES_FILTER_OPTION = "--aws-kms-tag-values-filter";
+  public static final String AWS_KMS_TAGS_OPTION = "--aws-kms-tag";
   public static final String AWS_CONNECTION_CACHE_SIZE_OPTION = "--aws-connection-cache-size";
 
   @Option(
@@ -78,20 +78,12 @@ public class PicoCliAwsKmsParameters implements AwsVaultParameters {
   private Optional<URI> endpointOverride;
 
   @Option(
-      names = AWS_KMS_TAG_NAMES_FILTER_OPTION,
+      names = AWS_KMS_TAGS_OPTION,
+      mapFallbackValue = "",
       description =
-          "Optional comma-separated list of tag names filter to apply while fetching key ids from AWS KMS."
-              + " Applied as AND operation with other filters.",
-      split = ",")
-  private List<String> tagNamesFilter = Collections.emptyList();
-
-  @Option(
-      names = AWS_KMS_TAG_VALUES_FILTER_OPTION,
-      description =
-          "Optional comma-separated list of tag values filter to apply while fetching key ids from AWS KMS."
-              + " Applied as AND operation with other filters.",
-      split = ",")
-  private List<String> tagValuesFilter = Collections.emptyList();
+          "Optional key-value pair to filter KMS keys based on tags. Format: --aws-kms-tag <tag-name>=<tag-value>. Can be repeated.",
+      paramLabel = "<TAG_NAME>=<TAG_VALUE>")
+  private Map<String, String> tags = new LinkedHashMap<>();
 
   @Option(
       names = {AWS_CONNECTION_CACHE_SIZE_OPTION},
@@ -131,13 +123,8 @@ public class PicoCliAwsKmsParameters implements AwsVaultParameters {
   }
 
   @Override
-  public Collection<String> getTagNamesFilter() {
-    return tagNamesFilter;
-  }
-
-  @Override
-  public Collection<String> getTagValuesFilter() {
-    return tagValuesFilter;
+  public Map<String, String> getTags() {
+    return tags;
   }
 
   @Override

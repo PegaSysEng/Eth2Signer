@@ -17,6 +17,8 @@ import tech.pegasys.web3signer.common.config.AwsAuthenticationMode;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 public final class AwsVaultParametersBuilder {
@@ -25,8 +27,7 @@ public final class AwsVaultParametersBuilder {
   private String secretAccessKey;
   private String region;
   private Collection<String> prefixesFilter = Collections.emptyList();
-  private Collection<String> tagNamesFilter = Collections.emptyList();
-  private Collection<String> tagValuesFilter = Collections.emptyList();
+  private Map<String, String> tags = new LinkedHashMap<>();
   private long cacheMaximumSize = 1;
 
   private Optional<URI> endpointURI = Optional.empty();
@@ -64,13 +65,11 @@ public final class AwsVaultParametersBuilder {
     return this;
   }
 
-  public AwsVaultParametersBuilder withTagNamesFilter(final Collection<String> tagNameFilters) {
-    this.tagNamesFilter = tagNameFilters;
-    return this;
-  }
-
-  public AwsVaultParametersBuilder withTagValuesFilter(final Collection<String> tagValuesFilter) {
-    this.tagValuesFilter = tagValuesFilter;
+  public AwsVaultParametersBuilder withTag(final String tagName, final String tagValue) {
+    if (tagName == null) {
+      throw new IllegalArgumentException("tagName must not be null");
+    }
+    this.tags.put(tagName, tagValue);
     return this;
   }
 
@@ -110,8 +109,7 @@ public final class AwsVaultParametersBuilder {
         secretAccessKey,
         region,
         prefixesFilter,
-        tagNamesFilter,
-        tagValuesFilter,
+        tags,
         cacheMaximumSize,
         endpointURI,
         enabled);
@@ -123,8 +121,7 @@ public final class AwsVaultParametersBuilder {
     private final String secretAccessKey;
     private final String region;
     private final Collection<String> prefixesFilter;
-    private final Collection<String> tagNamesFilter;
-    private final Collection<String> tagValuesFilter;
+    private final Map<String, String> tags;
     private final long cacheMaximumSize;
     private final Optional<URI> endpointOverride;
     private final boolean enabled;
@@ -135,8 +132,7 @@ public final class AwsVaultParametersBuilder {
         final String secretAccessKey,
         final String region,
         final Collection<String> prefixesFilter,
-        final Collection<String> tagNamesFilter,
-        final Collection<String> tagValuesFilter,
+        final Map<String, String> tags,
         final long cacheMaximumSize,
         final Optional<URI> endpointOverride,
         final boolean enabled) {
@@ -145,8 +141,7 @@ public final class AwsVaultParametersBuilder {
       this.secretAccessKey = secretAccessKey;
       this.region = region;
       this.prefixesFilter = prefixesFilter;
-      this.tagNamesFilter = tagNamesFilter;
-      this.tagValuesFilter = tagValuesFilter;
+      this.tags = tags;
       this.cacheMaximumSize = cacheMaximumSize;
       this.endpointOverride = endpointOverride;
       this.enabled = enabled;
@@ -188,13 +183,8 @@ public final class AwsVaultParametersBuilder {
     }
 
     @Override
-    public Collection<String> getTagNamesFilter() {
-      return tagNamesFilter;
-    }
-
-    @Override
-    public Collection<String> getTagValuesFilter() {
-      return tagValuesFilter;
+    public Map<String, String> getTags() {
+      return tags;
     }
 
     @Override

@@ -35,8 +35,7 @@ public class BlsAwsBulkLoader {
           AwsSecretsManagerFactory.createAwsSecretsManager(awsSecretsManagerProvider, parameters);
       return awsSecretsManager.mapSecrets(
           parameters.getPrefixesFilter(),
-          parameters.getTagNamesFilter(),
-          parameters.getTagValuesFilter(),
+          parameters.getTags(),
           (key, value) -> {
             final Bytes privateKeyBytes = Bytes.fromHexString(value);
             final BLSKeyPair keyPair =

@@ -17,8 +17,7 @@ import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KM
 import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_ENABLED_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_REGION_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_SECRET_ACCESS_KEY_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_TAG_NAMES_FILTER_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_TAG_VALUES_FILTER_OPTION;
+import static tech.pegasys.web3signer.commandline.PicoCliAwsKmsParameters.AWS_KMS_TAGS_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_ENDPOINT_OVERRIDE_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_ACCESS_KEY_ID_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_AUTH_MODE_OPTION;
@@ -26,8 +25,7 @@ import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParame
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_PREFIXES_FILTER_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_REGION_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_SECRET_ACCESS_KEY_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_NAMES_FILTER_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_VALUES_FILTER_OPTION;
+import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_OPTION;
 import static tech.pegasys.web3signer.signing.config.KeystoresParameters.KEYSTORES_PASSWORDS_PATH;
 import static tech.pegasys.web3signer.signing.config.KeystoresParameters.KEYSTORES_PASSWORD_FILE;
 import static tech.pegasys.web3signer.signing.config.KeystoresParameters.KEYSTORES_PATH;
@@ -580,20 +578,11 @@ public class CmdLineParamsConfigFileImpl implements CmdLineParamsBuilder {
               String.join(",", awsVaultParameters.getPrefixesFilter())));
     }
 
-    if (!awsVaultParameters.getTagNamesFilter().isEmpty()) {
-      yamlConfig.append(
-          String.format(
-              YAML_STRING_FMT,
-              "eth2." + AWS_SECRETS_TAG_NAMES_FILTER_OPTION.substring(2),
-              String.join(",", awsVaultParameters.getTagNamesFilter())));
-    }
-
-    if (!awsVaultParameters.getTagValuesFilter().isEmpty()) {
-      yamlConfig.append(
-          String.format(
-              YAML_STRING_FMT,
-              "eth2." + AWS_SECRETS_TAG_VALUES_FILTER_OPTION.substring(2),
-              String.join(",", awsVaultParameters.getTagValuesFilter())));
+    if (!awsVaultParameters.getTags().isEmpty()) {
+      yamlConfig.append("eth2.").append(AWS_SECRETS_TAG_OPTION.substring(2)).append(":\n");
+      awsVaultParameters
+          .getTags()
+          .forEach((key, value) -> yamlConfig.append(String.format("  %s: \"%s\"%n", key, value)));
     }
 
     awsVaultParameters
@@ -673,21 +662,23 @@ public class CmdLineParamsConfigFileImpl implements CmdLineParamsBuilder {
               awsVaultParameters.getRegion()));
     }
 
-    if (!awsVaultParameters.getTagNamesFilter().isEmpty()) {
-      yamlConfig.append(
-          String.format(
-              YAML_STRING_FMT,
-              "eth1." + AWS_KMS_TAG_NAMES_FILTER_OPTION.substring(2),
-              String.join(",", awsVaultParameters.getTagNamesFilter())));
+    if (!awsVaultParameters.getTags().isEmpty()) {
+      yamlConfig.append("eth1.").append(AWS_KMS_TAGS_OPTION.substring(2)).append(":\n");
+      awsVaultParameters
+          .getTags()
+          .forEach((key, value) -> yamlConfig.append(String.format("  %s: \"%s\"%n", key, value)));
     }
 
-    if (!awsVaultParameters.getTagValuesFilter().isEmpty()) {
-      yamlConfig.append(
-          String.format(
-              YAML_STRING_FMT,
-              "eth1." + AWS_KMS_TAG_VALUES_FILTER_OPTION.substring(2),
-              String.join(",", awsVaultParameters.getTagValuesFilter())));
-    }
+    awsVaultParameters
+        .getTags()
+        .forEach(
+            (key, value) -> {
+              yamlConfig.append(
+                  String.format(
+                      YAML_STRING_FMT,
+                      "eth1." + AWS_KMS_TAGS_OPTION.substring(2),
+                      key + "=" + value));
+            });
 
     awsVaultParameters
         .getEndpointOverride()
@@ -702,13 +693,5 @@ public class CmdLineParamsConfigFileImpl implements CmdLineParamsBuilder {
     return yamlConfig.toString();
   }
 
-  private static class CommandArgs {
-    private final List<String> params;
-    private final String yamlConfig;
-
-    public CommandArgs(final List<String> params, final String yamlConfig) {
-      this.params = params;
-      this.yamlConfig = yamlConfig;
-    }
-  }
+  private record CommandArgs(List<String> params, String yamlConfig) {}
 }

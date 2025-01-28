@@ -17,6 +17,7 @@ import tech.pegasys.web3signer.common.config.AwsAuthenticationMode;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 public interface AwsVaultParameters {
@@ -38,13 +39,7 @@ public interface AwsVaultParameters {
     return Collections.emptyList();
   }
 
-  default Collection<String> getTagNamesFilter() {
-    return Collections.emptyList();
-  }
-
-  default Collection<String> getTagValuesFilter() {
-    return Collections.emptyList();
-  }
+  Map<String, String> getTags();
 
   /**
    * Can be used to override AWS endpoint to localstack

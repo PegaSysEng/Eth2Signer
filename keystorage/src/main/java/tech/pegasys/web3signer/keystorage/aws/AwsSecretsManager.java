@@ -20,6 +20,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,20 +106,22 @@ public class AwsSecretsManager implements Closeable {
   }
 
   private ListSecretsIterable listSecrets(
-      final Collection<String> namePrefixes,
-      final Collection<String> tagKeys,
-      final Collection<String> tagValues) {
+      final Collection<String> namePrefixes, final Map<String, String> tags) {
     final ListSecretsRequest.Builder listSecretsRequestBuilder = ListSecretsRequest.builder();
     final List<Filter> filters = new ArrayList<>();
     if (!namePrefixes.isEmpty()) {
       filters.add(Filter.builder().key(FilterNameStringType.NAME).values(namePrefixes).build());
     }
-    if (!tagKeys.isEmpty()) {
-      filters.add(Filter.builder().key(FilterNameStringType.TAG_KEY).values(tagKeys).build());
+
+    if (!tags.isEmpty()) {
+      filters.add(Filter.builder().key(FilterNameStringType.TAG_KEY).values(tags.keySet()).build());
+      var nonEmptyTagValues = tags.values().stream().filter(value -> !value.isBlank()).toList();
+      if (!nonEmptyTagValues.isEmpty()) {
+        filters.add(
+            Filter.builder().key(FilterNameStringType.TAG_VALUE).values(nonEmptyTagValues).build());
+      }
     }
-    if (!tagValues.isEmpty()) {
-      filters.add(Filter.builder().key(FilterNameStringType.TAG_VALUE).values(tagValues).build());
-    }
+
     return secretsManagerClient.listSecretsPaginator(
         listSecretsRequestBuilder.filters(filters).build());
   }
@@ -127,20 +130,18 @@ public class AwsSecretsManager implements Closeable {
    * Bulk load secrets.
    *
    * @param namePrefixes Collection of name prefixes to filter.
-   * @param tagKeys Collection of tags names to filter
-   * @param tagValues Collection of tag values to filter
+   * @param tags Map of tag name/value pairs
    * @param mapper The mapper function that can convert secret value to appropriate type
    * @return SecretValueResult with collection of secret values and error count if any.
    */
   public <R> MappedResults<R> mapSecrets(
       final Collection<String> namePrefixes,
-      final Collection<String> tagKeys,
-      final Collection<String> tagValues,
+      final Map<String, String> tags,
       final BiFunction<String, String, R> mapper) {
     final Set<R> result = ConcurrentHashMap.newKeySet();
     final AtomicInteger errorCount = new AtomicInteger(0);
     try {
-      listSecrets(namePrefixes, tagKeys, tagValues)
+      listSecrets(namePrefixes, tags)
           .iterator()
           .forEachRemaining(
               listSecretsResponse ->

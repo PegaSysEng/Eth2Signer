@@ -18,6 +18,7 @@ import tech.pegasys.web3signer.signing.KeyType;
 import tech.pegasys.web3signer.signing.config.AwsVaultParameters;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -75,6 +76,11 @@ public class AwsKeySigningMetadata extends SigningMetadata implements AwsVaultPa
   @Override
   public String getRegion() {
     return region;
+  }
+
+  @Override
+  public Map<String, String> getTags() {
+    return Map.of();
   }
 
   @Override

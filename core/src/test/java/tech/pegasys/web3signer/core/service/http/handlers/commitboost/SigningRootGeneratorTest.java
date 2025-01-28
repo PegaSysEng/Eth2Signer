@@ -39,7 +39,6 @@ import org.web3j.crypto.ECKeyPair;
 import org.web3j.utils.Numeric;
 
 class SigningRootGeneratorTest {
-  private static final Bytes32 GVR = Bytes32.ZERO;
   private static final Map<Eth2Network, Bytes32> DOMAIN_MAP = new HashMap<>();
   private static final Map<Eth2Network, Bytes32> BLS_PROXY_ROOT_MAP = new HashMap<>();
   private static final Map<Eth2Network, Bytes32> SECP_PROXY_ROOT_MAP = new HashMap<>();

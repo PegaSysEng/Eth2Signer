@@ -22,12 +22,12 @@ import java.security.Provider;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
@@ -101,9 +101,7 @@ public class AwsKmsClient {
   }
 
   public <R> MappedResults<R> mapKeyList(
-      final Function<KeyListEntry, R> mapper,
-      final Collection<String> tagKeys,
-      final Collection<String> tagValues) {
+      final Function<KeyListEntry, R> mapper, final Map<String, String> tags) {
     final Set<R> result = ConcurrentHashMap.newKeySet();
     final AtomicInteger errorCount = new AtomicInteger(0);
 
@@ -114,8 +112,7 @@ public class AwsKmsClient {
           .forEachRemaining(
               listKeysResponse ->
                   listKeysResponse.keys().parallelStream()
-                      .filter(
-                          keyListEntry -> filterKeys(keyListEntry, tagKeys, tagValues, errorCount))
+                      .filter(keyListEntry -> filterKeys(keyListEntry, tags, errorCount))
                       .forEach(
                           keyListEntry -> {
                             try {
@@ -139,12 +136,10 @@ public class AwsKmsClient {
 
   private boolean filterKeys(
       final KeyListEntry keyListEntry,
-      final Collection<String> tagKeys,
-      final Collection<String> tagValues,
+      final Map<String, String> tags,
       final AtomicInteger errorCount) {
     try {
-      return isEnabledSecp256k1Key(keyListEntry)
-          && keyMatchesTags(keyListEntry.keyId(), tagKeys, tagValues);
+      return isEnabledSecp256k1Key(keyListEntry) && keyMatchesTags(keyListEntry.keyId(), tags);
     } catch (Exception e) {
       LOG.error("Unexpected error during Aws mapKeyList", e);
       errorCount.incrementAndGet();
@@ -162,23 +157,17 @@ public class AwsKmsClient {
     return isEnabled && isSecp256k1;
   }
 
-  private boolean keyMatchesTags(
-      final String keyId, final Collection<String> tagKeys, final Collection<String> tagValues) {
-    if (tagKeys.isEmpty() && tagValues.isEmpty())
-      return true; // we don't want to filter if user-supplied tags map is empty
+  private boolean keyMatchesTags(final String keyId, final Map<String, String> userSuppliedTags) {
+    if (userSuppliedTags.isEmpty()) {
+      return true; // we don't want to apply any filters if user-supplied tags map is empty
+    }
 
-    final List<Tag> kmsTags =
+    var kmsTags =
         kmsClient.listResourceTags(ListResourceTagsRequest.builder().keyId(keyId).build()).tags();
-    return matchesTag(kmsTags, tagKeys, Tag::tagKey)
-        && matchesTag(kmsTags, tagValues, Tag::tagValue);
-  }
+    var kmsTagsMap = kmsTags.stream().collect(Collectors.toMap(Tag::tagKey, Tag::tagValue));
 
-  private boolean matchesTag(
-      final List<Tag> kmsTags,
-      final Collection<String> tags,
-      final Function<Tag, String> tagProperty) {
-    return tags.isEmpty()
-        || kmsTags.stream().allMatch(tag -> tags.contains(tagProperty.apply(tag)));
+    return userSuppliedTags.entrySet().stream()
+        .allMatch(entry -> entry.getValue().equals(kmsTagsMap.get(entry.getKey())));
   }
 
   @VisibleForTesting

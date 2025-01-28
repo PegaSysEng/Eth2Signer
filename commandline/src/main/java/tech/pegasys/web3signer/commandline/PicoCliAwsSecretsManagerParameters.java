@@ -18,7 +18,9 @@ import tech.pegasys.web3signer.signing.config.AwsVaultParameters;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import picocli.CommandLine;
@@ -33,9 +35,7 @@ public class PicoCliAwsSecretsManagerParameters implements AwsVaultParameters {
   public static final String AWS_SECRETS_REGION_OPTION = "--aws-secrets-region";
   public static final String AWS_ENDPOINT_OVERRIDE_OPTION = "--aws-endpoint-override";
   public static final String AWS_SECRETS_PREFIXES_FILTER_OPTION = "--aws-secrets-prefixes-filter";
-  public static final String AWS_SECRETS_TAG_NAMES_FILTER_OPTION = "--aws-secrets-tag-names-filter";
-  public static final String AWS_SECRETS_TAG_VALUES_FILTER_OPTION =
-      "--aws-secrets-tag-values-filter";
+  public static final String AWS_SECRETS_TAG_OPTION = "--aws-secrets-tag";
   public static final String AWS_CONNECTION_CACHE_SIZE_OPTION = "--aws-connection-cache-size";
 
   @Option(
@@ -90,20 +90,11 @@ public class PicoCliAwsSecretsManagerParameters implements AwsVaultParameters {
   private List<String> prefixesFilter = Collections.emptyList();
 
   @Option(
-      names = AWS_SECRETS_TAG_NAMES_FILTER_OPTION,
+      names = AWS_SECRETS_TAG_OPTION,
+      mapFallbackValue = "",
       description =
-          "Optional comma-separated list of tag names filter to apply while fetching secrets from AWS secrets manager."
-              + " Applied as AND operation with other filters.",
-      split = ",")
-  private List<String> tagNamesFilter = Collections.emptyList();
-
-  @Option(
-      names = AWS_SECRETS_TAG_VALUES_FILTER_OPTION,
-      description =
-          "Optional comma-separated list of tag values filter to apply while fetching secrets from AWS secrets manager."
-              + " Applied as AND operation with other filters.",
-      split = ",")
-  private List<String> tagValuesFilter = Collections.emptyList();
+          "Optional key-value pair to filter secrets based on tags. Format --aws-secrets-tag <tag-name>=<tag-value>. Can be repeated.")
+  private Map<String, String> tags = new LinkedHashMap<>();
 
   @CommandLine.Option(
       names = {AWS_CONNECTION_CACHE_SIZE_OPTION},
@@ -148,13 +139,8 @@ public class PicoCliAwsSecretsManagerParameters implements AwsVaultParameters {
   }
 
   @Override
-  public Collection<String> getTagNamesFilter() {
-    return tagNamesFilter;
-  }
-
-  @Override
-  public Collection<String> getTagValuesFilter() {
-    return tagValuesFilter;
+  public Map<String, String> getTags() {
+    return tags;
   }
 
   @Override

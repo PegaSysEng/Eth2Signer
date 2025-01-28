@@ -113,8 +113,8 @@ public class AwsSecretsManagerAcceptanceTest extends AcceptanceTestBase {
             .withAccessKeyId(RO_AWS_ACCESS_KEY_ID)
             .withSecretAccessKey(RO_AWS_SECRET_ACCESS_KEY)
             .withPrefixesFilter(List.of(awsSecretsManagerUtil.getSecretsManagerPrefix()))
-            .withTagNamesFilter(List.of("TagName0", "TagName1"))
-            .withTagValuesFilter(List.of("TagValue0", "TagValue1", "TagValue2"))
+            .withTag("TagName0", "TagValue0")
+            .withTag("TagName1", "TagValue1")
             .withEndpointOverride(awsEndpointOverride)
             .build();
 
@@ -186,8 +186,8 @@ public class AwsSecretsManagerAcceptanceTest extends AcceptanceTestBase {
             .withEnabled(true)
             .withAuthenticationMode(AwsAuthenticationMode.ENVIRONMENT)
             .withPrefixesFilter(List.of(awsSecretsManagerUtil.getSecretsManagerPrefix()))
-            .withTagNamesFilter(List.of("TagName2", "TagName3"))
-            .withTagValuesFilter(List.of("TagValue0", "TagValue2", "TagValue3"))
+            .withTag("TagName2", "TagValue2")
+            .withTag("TagName3", "TagValue3")
             .withEndpointOverride(awsEndpointOverride)
             .build();
 

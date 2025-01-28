@@ -21,8 +21,7 @@ import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParame
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_PREFIXES_FILTER_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_REGION_OPTION;
 import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_SECRET_ACCESS_KEY_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_NAMES_FILTER_OPTION;
-import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_VALUES_FILTER_OPTION;
+import static tech.pegasys.web3signer.commandline.PicoCliAwsSecretsManagerParameters.AWS_SECRETS_TAG_OPTION;
 
 import tech.pegasys.web3signer.commandline.subcommands.Eth2SubCommand;
 import tech.pegasys.web3signer.common.config.AwsAuthenticationMode;
@@ -37,6 +36,7 @@ import java.io.StringWriter;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -500,7 +500,7 @@ class CommandlineParserTest {
     String cmdline = validBaseCommandOptions();
     cmdline +=
         String.format(
-            "eth2 --slashing-protection-enabled=false %s=%s %s=%s %s=test %s=test %s=us-east-2 %s=p1,p2,p3 %s=t1,t2,t3 %s=v1,v2,v3",
+            "eth2 --slashing-protection-enabled=false %s=%s %s=%s %s=test %s=test %s=us-east-2 %s=p1,p2,p3 %9$s=t1=v1 %9$s t2=v2 %9$s=t3=v3",
             AWS_SECRETS_ENABLED_OPTION,
             Boolean.TRUE,
             AWS_SECRETS_AUTH_MODE_OPTION,
@@ -509,8 +509,7 @@ class CommandlineParserTest {
             AWS_SECRETS_SECRET_ACCESS_KEY_OPTION,
             AWS_SECRETS_REGION_OPTION,
             AWS_SECRETS_PREFIXES_FILTER_OPTION,
-            AWS_SECRETS_TAG_NAMES_FILTER_OPTION,
-            AWS_SECRETS_TAG_VALUES_FILTER_OPTION);
+            AWS_SECRETS_TAG_OPTION);
 
     MockEth2SubCommand mockEth2SubCommand = new MockEth2SubCommand();
     assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters()).isNull();
@@ -521,10 +520,9 @@ class CommandlineParserTest {
     assertThat(result).isZero();
     assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getPrefixesFilter())
         .contains("p1", "p2", "p3");
-    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTagNamesFilter())
-        .contains("t1", "t2", "t3");
-    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTagValuesFilter())
-        .contains("v1", "v2", "v3");
+    var expectedTags = Map.of("t1", "v1", "t2", "v2", "t3", "v3");
+    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTags())
+        .containsExactlyInAnyOrderEntriesOf(expectedTags);
   }
 
   @Test
@@ -532,15 +530,14 @@ class CommandlineParserTest {
     String cmdline = validBaseCommandOptions();
     cmdline +=
         String.format(
-            "eth2 --slashing-protection-enabled=false %s=%s %s=test %s=test %s=us-east-2 %s=p1,p2,p3 %s=t1,t2,t3 %s=v1,v2,v3",
+            "eth2 --slashing-protection-enabled=false %s=%s %s=test %s=test %s=us-east-2 %s=p1,p2,p3 %7$s=t1=v1 %7$s=t2=v2 %7$s=t3=v3",
             AWS_SECRETS_ENABLED_OPTION,
             Boolean.TRUE,
             AWS_SECRETS_ACCESS_KEY_ID_OPTION,
             AWS_SECRETS_SECRET_ACCESS_KEY_OPTION,
             AWS_SECRETS_REGION_OPTION,
             AWS_SECRETS_PREFIXES_FILTER_OPTION,
-            AWS_SECRETS_TAG_NAMES_FILTER_OPTION,
-            AWS_SECRETS_TAG_VALUES_FILTER_OPTION);
+            AWS_SECRETS_TAG_OPTION);
 
     MockEth2SubCommand mockEth2SubCommand = new MockEth2SubCommand();
     assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters()).isNull();
@@ -553,10 +550,9 @@ class CommandlineParserTest {
         .isEqualTo(AwsAuthenticationMode.SPECIFIED);
     assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getPrefixesFilter())
         .contains("p1", "p2", "p3");
-    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTagNamesFilter())
-        .contains("t1", "t2", "t3");
-    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTagValuesFilter())
-        .contains("v1", "v2", "v3");
+    var expectedTags = Map.of("t1", "v1", "t2", "v2", "t3", "v3");
+    assertThat(mockEth2SubCommand.getAwsSecretsManagerParameters().getTags())
+        .containsExactlyInAnyOrderEntriesOf(expectedTags);
   }
 
   @Test

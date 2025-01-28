@@ -57,7 +57,7 @@ public class CommitBoostGetPubKeysAcceptanceTest extends AcceptanceTestBase {
   @TempDir private Path commitBoostPasswordDir;
 
   @BeforeEach
-  void setup() throws Exception {
+  void setup() {
     for (final BLSKeyPair blsKeyPair : consensusBlsKeys) {
       // create consensus bls keystore
       KeystoreUtil.createKeystore(blsKeyPair, keystoreDir, passwordDir, KEYSTORE_PASSWORD);
@@ -111,12 +111,14 @@ public class CommitBoostGetPubKeysAcceptanceTest extends AcceptanceTestBase {
       assertThat(proxyBLSKeysMap.keySet()).contains(consensusKeyHex);
 
       // verify if proxy BLS keys are present in the response
+      @SuppressWarnings("unchecked")
       final List<String> responseProxyBlsKeys = (List<String>) responseKeyMap.get("proxy_bls");
       final List<String> expectedProxyBLSKeys = getProxyBLSPubKeys(consensusKeyHex);
       assertThat(responseProxyBlsKeys)
           .containsExactlyInAnyOrder(expectedProxyBLSKeys.toArray(String[]::new));
 
       // verify if proxy SECP keys are present in the response
+      @SuppressWarnings("unchecked")
       final List<String> responseProxySECPKeys = (List<String>) responseKeyMap.get("proxy_ecdsa");
       final List<String> expectedProxySECPKeys = getProxyECPubKeys(consensusKeyHex);
       assertThat(responseProxySECPKeys)

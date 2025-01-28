@@ -111,7 +111,7 @@ public class AwsSecretsManagerMultiValueAcceptanceTest extends AcceptanceTestBas
             .withAccessKeyId(RO_AWS_ACCESS_KEY_ID)
             .withSecretAccessKey(RO_AWS_SECRET_ACCESS_KEY)
             .withPrefixesFilter(List.of(awsSecretsManagerUtil.getSecretsManagerPrefix()))
-            .withTagNamesFilter(List.of("multivalue"))
+            .withTag("multivalue", "")
             .withEndpointOverride(awsEndpointOverride)
             .build();
 
@@ -127,7 +127,7 @@ public class AwsSecretsManagerMultiValueAcceptanceTest extends AcceptanceTestBas
         blsKeyPairList.stream()
             .map(BLSKeyPair::getPublicKey)
             .map(BLSPublicKey::toHexString)
-            .collect(Collectors.toList());
+            .toList();
 
     signer
         .callApiPublicKeys(KeyType.BLS)
