@@ -504,88 +504,6 @@ task testDocker {
   }
 }
 
-def dockerTagPrefixes(String dockerBuildVersion) {
-  def versionPrefixes = [dockerBuildVersion]
-  if (project.hasProperty('branch') && project.property('branch') == 'master') {
-    versionPrefixes.add('develop')
-  }
-
-  // add `latest` tag for non-develop and non-rc versions
-  if (!rootProject.version.contains('develop') && !rootProject.version.toLowerCase().contains('-rc')) {
-    versionPrefixes.add('latest')
-    // when docker build version is x.y.[a,b..] we would also like to use tag x.y
-    versionPrefixes.add(dockerBuildVersion.split(/\./)[0..1].join('.'))
-  }
-
-  return versionPrefixes
-}
-
-task uploadDocker {
-  dependsOn([distDocker])
-  def dockerBuildVersion = "${rootProject.version}".replace('+', '-')
-  def architecture = System.getenv('architecture')
-  def platform = System.getenv('platform')
-
-  def versionPrefixes = dockerTagPrefixes(dockerBuildVersion)
-
-  doLast {
-    for (def variant in dockerJdkVariants) {
-      def tags = ""
-      versionPrefixes.forEach { prefix -> tags += "-t ${dockerImage}:${prefix.trim()}-${variant}-${architecture} "}
-
-      if (variant == dockerJdkVariants[0]) {
-        versionPrefixes.forEach { prefix -> tags += "-t ${dockerImage}:${prefix.trim()}-${architecture} "}
-      }
-
-      copy {
-        from file("${projectDir}/docker/${variant}/Dockerfile")
-        into(dockerBuildDir)
-      }
-
-      exec {
-        workingDir dockerBuildDir
-        executable "sh"
-        args "-c", "docker build --platform ${platform} --build-arg BUILD_DATE=${buildTime()} --build-arg VERSION=${dockerBuildVersion} --build-arg VCS_REF=${getCheckedOutGitCommitHash()} ${tags} ."
-      }
-
-      //docker trust sign runs one image at a time, so we have to remove the '-t' in the string and split into a list we can use
-      def trustTags = tags.replaceAll( '-t ', '' ).trim().split(' ')
-      for (def t in trustTags) {
-        exec {
-          workingDir dockerBuildDir
-          executable "sh"
-          args "-c", "docker trust sign ${t} && docker push ${t} "
-        }
-      }
-    }
-  }
-}
-
-task manifestDocker {
-  def dockerBuildVersion = "${rootProject.version}".replace('+', '-')
-  def versionPrefixes = dockerTagPrefixes(dockerBuildVersion)
-  def platforms = ["arm64", "amd64"]
-
-  doLast {
-    for (def variant in dockerJdkVariants) {
-      def tags = []
-      def cmd = ""
-      versionPrefixes.forEach { prefix -> tags.add("${dockerImage}:${prefix.trim()}-${variant}") }
-
-      if (variant == dockerJdkVariants[0]) {
-        versionPrefixes.forEach { prefix -> tags.add("${dockerImage}:${prefix.trim()}") }
-      }
-
-      for (def tag in tags) {
-        platforms.forEach { platform -> cmd += "${tag}-${platform} " }
-        exec {
-          executable "sh"
-          args "-c", "docker manifest create ${tag} ${cmd} && docker manifest push ${tag}"
-        }
-      }
-    }
-  }
-}
 
 task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
   additionalSourceDirs.from files(subprojects.sourceSets.main.allSource.srcDirs)
@@ -652,7 +570,8 @@ def calculateVersion() {
 
 task printVersion() {
   doFirst {
-    print "Specific version: ${specificVersion}  Publish version: ${project.version}"
+    println "specific-version=${specificVersion}"
+    println "publish-version=${project.version}"
   }
 }
 
@@ -672,16 +591,6 @@ task releaseIntegrationTest(type: Test){
 }
 
 task releaseAcceptanceTest(type: Test, dependsOn : ':acceptance-tests:acceptanceTest') {}
-
-task cloudsmithUpload {
-  dependsOn([distTar, distZip,])
-  doLast {
-    exec {
-      executable project.file("scripts/cloudsmith-upload.sh")
-      args rootProject.version, "${buildDir}/distributions"
-    }
-  }
-}
 
 def calculateJarName(Project project) {
   def jarName = project.name

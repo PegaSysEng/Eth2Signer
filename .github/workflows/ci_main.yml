@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+(-?.*)'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    # 4 cpu, 16G ram
+    runs-on: ubuntu-24.04
+    environment: production
+    outputs:
+      publish-version: ${{ steps.build-test.outputs.publish-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Build and Test
+        id: build-test
+        uses: ./.github/actions/build-test
+
+      - name: Create zip and tar distributions
+        run: ./gradlew distTar distZip
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution
+          path: build/distributions/
+          retention-days: 1
+          if-no-files-found: error
+
+  docker:
+    runs-on: ubuntu-24.04
+    needs: build
+    environment: docker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: distribution
+          path: build/distributions/
+
+      - name: Calculate Docker Tags
+        id: calculate-tags
+        run: |
+          TAGS="consensys/web3signer:${{ needs.build.outputs.publish-version }}"
+          if [ "${{ needs.build.outputs.publish-version }}" != "develop" ]; then
+            TAGS="$TAGS,consensys/web3signer:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+      - name: Build and export to docker
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          file: docker/Dockerfile
+          context: .
+          build-args: |
+            TAR_FILE=./build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.tar.gz
+          no-cache: true
+          load: true
+          tags: consensys/web3signer:test
+
+      - name: Get absolute path of reports directory
+        id: get-reports-dir
+        run: echo "path=$(realpath ./build/reports)" >> $GITHUB_OUTPUT
+
+      - name: Run Docker tests
+        run: ./docker/test.sh 'consensys/web3signer:test' '${{ steps.get-reports-dir.outputs.path }}'
+
+      - name: Test Summary
+        if: always()
+        run: |
+          SUMMARY_CONTENT="<h2>Docker Test Summary</h2>\n"
+          SUMMARY_CONTENT+="<details><summary><strong>Details</strong></summary>\n"
+          SUMMARY_CONTENT+="<pre><code>\n"
+          SUMMARY_CONTENT+=$(cat ./build/reports/goss-report.txt)
+          SUMMARY_CONTENT+="\n</code></pre></details>\n"
+          echo -e "$SUMMARY_CONTENT" >> $GITHUB_STEP_SUMMARY          
+
+      - name: Determine Push Flag
+        id: determine-push-flag
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "push=false" >> $GITHUB_OUTPUT
+          else
+            echo "push=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        if: steps.determine-push-flag.outputs.push == 'true'
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push to registry
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          file: docker/Dockerfile
+          context: .
+          build-args: |
+            TAR_FILE=./build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.tar.gz
+          push: ${{ steps.determine-push-flag.outputs.push }}
+          tags: ${{ steps.calculate-tags.outputs.tags }}
+
+  release:
+    runs-on: ubuntu-24.04
+    needs: [build, docker]
+    if: startsWith(github.ref, 'refs/tags/')
+    environment: release
+    permissions:
+        contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distribution
+          path: build/distributions/
+
+      - name: Generate Checksum
+        working-directory: ./build/distributions
+        run: |
+          shasum -a 256 "web3signer-${{ needs.build.outputs.publish-version }}.tar.gz" > "web3signer-${{ needs.build.outputs.publish-version }}.tar.gz.sha256"
+          shasum -a 256 "web3signer-${{ needs.build.outputs.publish-version }}.zip" > "web3signer-${{ needs.build.outputs.publish-version }}.zip.sha256"
+
+      - name: Determine Prerelease
+        id: determine-prerelease
+        run: |
+          if [[ "${{ needs.build.outputs.publish-version }}" == *-RC* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Create release tag and attach the distribution
+      - name: Web3Signer Release
+        id: release
+        uses: softprops/action-gh-release@v2.2.1
+        with:
+          files: |
+            build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.tar.gz
+            build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.tar.gz.sha256
+            build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.zip
+            build/distributions/web3signer-${{ needs.build.outputs.publish-version }}.zip.sha256
+
+          tag_name: ${{ needs.build.outputs.publish-version }}
+          body: |
+            ** Web3Signer Release **
+          draft: true
+          prerelease: ${{ steps.determine-prerelease.outputs.prerelease }}
+          preserve_order: true

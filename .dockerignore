@@ -1,0 +1,6 @@
+# Ignore everything
+**
+
+# Whitelist specific directories
+!build/distributions/
+!docker/
